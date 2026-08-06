@@ -7,6 +7,42 @@
 .buildlog/
 .history
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets & local config
+.env
+.env.*
+!.env.example
+secrets.json
+*_api_key*
+config.local.*
+
+# Packet captures
+*.pcap
+*.cap
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+
 
 
 # Flutter repo-specific
