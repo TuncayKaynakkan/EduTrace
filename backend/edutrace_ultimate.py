@@ -531,10 +531,14 @@ def ag_ronto_cek(sure: int) -> dict[str, dict[str, Any]]:
                 stats[src_ip]["pt"].add(dport)
                 imza_motoru.kayit_ekle(src_ip, dport, "TCP", flags)
             elif UDP in pkt:
-                dport = pkt[UDP].dport
-                stats[src_ip]["pt"].add(dport)
+                sport, dport = pkt[UDP].sport, pkt[UDP].dport
+                if src_ip == AKTIF_IP:
+                    imza_motoru.giden_udp_kaydet(pkt[IP].dst, dport)
+                # On a reply to our own request, dport is just our ephemeral port, not a target
+                if not imza_motoru.udp_yanit_mi(src_ip, sport):
+                    stats[src_ip]["pt"].add(dport)
                 stats[src_ip]["udp_p"] += 1
-                imza_motoru.kayit_ekle(src_ip, dport, "UDP", 0)
+                imza_motoru.kayit_ekle(src_ip, dport, "UDP", 0, sport=sport)
             elif ICMP in pkt:
                 stats[src_ip]["icmp_p"] += 1
                 imza_motoru.kayit_ekle(src_ip, 0, "ICMP", 0)
