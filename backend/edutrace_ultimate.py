@@ -638,6 +638,7 @@ def canli_gorev_yoneticisi() -> None:
 
 def edutrace_sentinel_motoru() -> None:
     """Main XDR loop: sniff traffic, detect anomalies, and enqueue threat handling."""
+    global _last_npcap_warn
     print(f"[*] FAZ 1: Baz trafik ogreniliyor (en az {MIN_TRAINING_SAMPLES} ornek)...")
     model_hazir = False
     son_egitim = time.time()
