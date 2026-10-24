@@ -636,18 +636,51 @@ def emit_temiz_trafik(ip: str, paket: int) -> None:
     socketio.emit("temiz_trafik", {"ip": ip, "paket": paket})
 
 
+# Where an alert came from decides how much evidence it carries
+KAYNAK_IMZA = "imza"  # signature rule matched concrete attack behaviour
+KAYNAK_ESIK = "esik"  # hard volume threshold (1000+ packets to 50+ ports)
+KAYNAK_ML = "ml"      # IsolationForest: traffic is unusual, not proven malicious
+
+
+def engelleme_karari(kaynak: str, istihbarat: dict[str, Any]) -> bool:
+    """Whether an alert is acted on (firewall, process kill) or only reported.
+
+    Rule and threshold alerts are based on observed attack behaviour. An ML
+    anomaly only says the traffic is unusual, so it needs threat intelligence
+    to confirm the IP before anything is blocked.
+    """
+    if kaynak in (KAYNAK_IMZA, KAYNAK_ESIK):
+        return True
+    vt_skor = istihbarat.get("vt_skor")
+    return isinstance(vt_skor, int) and not isinstance(vt_skor, bool) and vt_skor > 0
+
+
 def _tehdit_isle(
-    ip: str, exe_adi: str, pid: int | None, saldiri_turu: str = "Supheli Ag Taramasi", aciklama: str = ""
+    ip: str,
+    exe_adi: str,
+    pid: int | None,
+    saldiri_turu: str = "Supheli Ag Taramasi",
+    aciklama: str = "",
+    kaynak: str = KAYNAK_ML,
 ) -> None:
     """Run threat intelligence, blocking, and educational reporting in background."""
     try:
-        print(f"\n[!!!] TEHDIT YAKALANDI: {ip} -> {saldiri_turu}")
+        print(f"\n[!!!] TEHDIT YAKALANDI: {ip} -> {saldiri_turu} (kaynak: {kaynak})")
         istihbarat_raporu = tehdit_motoru.analiz_et_ve_karar_ver(ip)
 
-        # Yerel ag veya kural motoru tarafindan yakalanan somut saldirilar harici API'ye bagimli olmadan otonom engellenir
-        imza_saldirisi = any(k in saldiri_turu.lower() for k in ["scan", "tarama", "flood", "brute", "anomali", "stealth", "dos"])
-        if istihbarat_raporu["otonom_karar"] != "ENGELLE" and not imza_saldirisi:
-            print(f"[+] API Analizi Sonucu: Yanlis alarm, {ip} guvenli gorunuyor.")
+        if not engelleme_karari(kaynak, istihbarat_raporu):
+            print(
+                f"[~] {ip}: ML anomalisi VirusTotal ile dogrulanmadi "
+                f"(skor: {istihbarat_raporu.get('vt_skor')}); engellenmedi, izlenmeye devam ediliyor."
+            )
+            socketio.emit(
+                "islem_bildirimi",
+                {
+                    "durum": "bilgi",
+                    "mesaj": f"{ip} adresinde olagan disi trafik goruldu ({saldiri_turu}); "
+                    "VirusTotal dogrulamadigi icin engellenmedi, izleniyor.",
+                },
+            )
             return
 
         with _state_lock:
@@ -774,7 +807,8 @@ def edutrace_sentinel_motoru() -> None:
                     _isleniyor.add(ip)
                 exe_adi, pid = surec_bilgisi_al(ip)
                 _background_executor.submit(
-                    _tehdit_isle, ip, exe_adi, pid, imza_alarmi.attack_type, imza_alarmi.description
+                    _tehdit_isle, ip, exe_adi, pid, imza_alarmi.attack_type, imza_alarmi.description,
+                    KAYNAK_IMZA,
                 )
             elif kesin_tarama or ml_anomali:
                 if su_an - _last_threat_time.get(ip, 0) < THREAT_COOLDOWN:
@@ -785,7 +819,8 @@ def edutrace_sentinel_motoru() -> None:
                 saldiri_adi = "Agresif Port Taramasi (DDoS/Kesif)" if kesin_tarama else "Yapay Zeka Anomali Tespiti"
                 aciklama = f"{ip} adresinden {port_sayisi} farkli porta {veri['p']} adet supheli paket gonderildi."
                 exe_adi, pid = surec_bilgisi_al(ip)
-                _background_executor.submit(_tehdit_isle, ip, exe_adi, pid, saldiri_adi, aciklama)
+                kaynak = KAYNAK_ESIK if kesin_tarama else KAYNAK_ML
+                _background_executor.submit(_tehdit_isle, ip, exe_adi, pid, saldiri_adi, aciklama, kaynak)
             else:
                 dinamik_egitim_havuzu.append({"p": veri["p"], "pt": port_sayisi})
                 emit_temiz_trafik(ip, veri["p"])
