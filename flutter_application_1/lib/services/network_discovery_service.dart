@@ -11,6 +11,21 @@ class NetworkDiscoveryService {
   ///
   /// Returns the first discovered backend URL, or `null` if none is found.
   Future<String?> discoverBackendUrl() async {
+    // Backend varsayilan olarak yerel makinede calisir; once onu dene.
+    try {
+      final local = await Socket.connect(
+        '127.0.0.1',
+        backendPort,
+        timeout: const Duration(milliseconds: 500),
+      );
+      await local.close();
+      return 'http://127.0.0.1:$backendPort';
+    } on SocketException {
+      // Yerelde yok; agda ara.
+    } on TimeoutException {
+      // Yerelde yok; agda ara.
+    }
+
     final subnets = await _collectSubnets();
     if (subnets.isEmpty) {
       return null;

@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTrace XDR — Akıllı Ağ Güvenliği ve Otonom Tehdit Savunması</title>
+  <meta name="description" content="Yapay zeka destekli otonom siber güvenlik ve ağ izleme yazılımı. Nmap, DoS, port taraması tespiti ve anında güvenlik duvarı bloklaması.">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0A0E14;
+      --surface: #111821;
+      --surface-alt: #161F2B;
+      --border: #1F2B3A;
+      --accent: #22D3EE;
+      --accent-glow: rgba(34, 211, 238, 0.25);
+      --gold: #F59E0B;
+      --gold-glow: rgba(245, 158, 11, 0.25);
+      --success: #34D399;
+      --danger: #F87171;
+      --text: #E6EDF3;
+      --text-muted: #8B98A9;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Background Glow Gradients */
+    .glow-bg {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 15%, rgba(34, 211, 238, 0.12) 0%, transparent 60%),
+                  radial-gradient(circle at 80% 40%, rgba(245, 158, 11, 0.08) 0%, transparent 50%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navbar */
+    nav {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(31, 43, 58, 0.6);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent), #3B82F6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: #fff;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0A0E14;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      background: #38bdf8;
+      transform: translateY(-1px);
+    }
+
+    .btn-pro {
+      background: linear-gradient(135deg, var(--gold), #EA580C);
+      color: #fff;
+      box-shadow: 0 0 20px var(--gold-glow);
+    }
+
+    .btn-pro:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 28px var(--gold-glow);
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      color: #fff;
+      border: 1px solid var(--border);
+    }
+
+    .btn-outline:hover {
+      background: var(--surface-alt);
+      border-color: var(--accent);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 90px 0 60px;
+      text-align: center;
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(34, 211, 238, 0.1);
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      border-radius: 999px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      margin-bottom: 20px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #fff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 36px;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 50px;
+    }
+
+    /* App Mockup Box */
+    .app-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(34, 211, 238, 0.08);
+      max-width: 960px;
+      margin: 0 auto;
+      text-align: left;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .window-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .dot-red { background: #EF4444; }
+    .dot-yellow { background: #F59E0B; }
+    .dot-green { background: #10B981; }
+
+    .preview-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-box {
+      background: var(--surface-alt);
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .stat-cyan { color: var(--accent); }
+    .stat-green { color: var(--success); }
+    .stat-gold { color: var(--gold); }
+    .stat-danger { color: var(--danger); }
+
+    .preview-body {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+    }
+
+    .preview-panel {
+      background: var(--surface-alt);
+      border-radius: 10px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .panel-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-entry {
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.2);
+      margin-bottom: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    .log-alert {
+      border-left-color: var(--danger);
+      background: rgba(248, 113, 113, 0.08);
+    }
+
+    /* Features Section */
+    .features {
+      padding: 100px 0;
+    }
+
+    .section-head {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .section-head h2 {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .section-head p {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      transition: all 0.2s ease;
+    }
+
+    .feature-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 18px;
+      background: rgba(34, 211, 238, 0.1);
+      color: var(--accent);
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+
+    .feature-card p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Pricing Section */
+    .pricing {
+      padding: 80px 0 100px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 30px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .price-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .price-card.featured {
+      border-color: var(--gold);
+      box-shadow: 0 0 40px var(--gold-glow);
+    }
+
+    .featured-badge {
+      position: absolute;
+      top: -12px;
+      right: 24px;
+      background: linear-gradient(135deg, var(--gold), #EA580C);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+    }
+
+    .price-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .price-val {
+      font-size: 44px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .price-period {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .feature-list {
+      list-style: none;
+      margin-bottom: 32px;
+      flex-grow: 1;
+    }
+
+    .feature-list li {
+      font-size: 13.5px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .feature-list li.disabled {
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 34px; }
+      .features-grid, .pricing-grid, .preview-stats, .preview-body { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-bg"></div>
+
+  <!-- Navbar -->
+  <nav>
+    <div class="container" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+      <a href="#" class="brand">
+        <img src="assets/logo.png" alt="EduTrace Logo" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover; box-shadow: 0 0 16px rgba(34, 211, 238, 0.3);">
+        EduTrace
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#features">Özellikler</a></li>
+        <li><a href="#architecture">Nasıl Çalışır</a></li>
+        <li><a href="#pricing">Planlar</a></li>
+      </ul>
+
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          <span style="color: #fff;">🇹🇷 TR</span>
+          <span style="color: var(--border);">|</span>
+          <a href="en.html" style="color: var(--text-muted); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">🇬🇧 EN</a>
+        </div>
+        <a href="https://edutrace.lemonsqueezy.com/checkout/buy/ade0fc83-f990-4985-a675-b69ca8a67109" target="_blank" class="btn btn-pro">PRO Lisans Al</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="container">
+      <div class="pill-badge">
+        <span>✨</span> EduTrace v1.0 — Windows 10 & 11 İçin Hazır
+      </div>
+      <h1>
+        Ağınızı Koruyan, Tehditleri Açıklayan <br>
+        <span class="gradient-text">Otonom XDR ve AI Savunma Kalkanı</span>
+      </h1>
+      <p>
+        Saniyede binlerce paketi analiz eden kayan pencere algoritmaları, Windows Güvenlik Duvarı entegrasyonu ve Gemini AI ile saldırganları anında etkisiz hale getirin.
+      </p>
+
+      <div class="hero-actions">
+        <a href="#download" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          EduTrace İndir (Windows)
+        </a>
+        <a href="#features" class="btn btn-outline">Özellikleri İncele</a>
+      </div>
+
+      <!-- App Interface Preview Mockup -->
+      <div class="app-preview">
+        <div class="preview-header">
+          <div class="window-dot dot-red"></div>
+          <div class="window-dot dot-yellow"></div>
+          <div class="window-dot dot-green"></div>
+          <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">EduTrace Command Center — Canlı Ağ Radarı</span>
+        </div>
+
+        <div class="preview-stats">
+          <div class="stat-box">
+            <div class="stat-label">Tespit Edilen Cihaz</div>
+            <div class="stat-value stat-cyan">14 Host</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Analiz Edilen Paket</div>
+            <div class="stat-value stat-green">148.2 B</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Ağa Bağlı Uygulama</div>
+            <div class="stat-value stat-gold">8 Süreç</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Engellenen Tehdit</div>
+            <div class="stat-value stat-danger">1 Tehdit</div>
+          </div>
+        </div>
+
+        <div class="preview-body">
+          <div class="preview-panel">
+            <div class="panel-title">
+              <span>CANLI RADAR AKIŞI</span>
+              <span style="color: var(--success); font-size: 11px;">● CANLI</span>
+            </div>
+            <div class="log-entry">
+              <span style="color: var(--accent);">[TCP]</span> 142.250.187.174 : 443 — <strong>chrome.exe</strong> (412 Paket)
+            </div>
+            <div class="log-entry">
+              <span style="color: var(--accent);">[UDP]</span> 35.186.224.25 : 443 — <strong>spotify.exe</strong> (189 Paket)
+            </div>
+            <div class="log-entry log-alert">
+              <span style="color: var(--danger);">[KRİTİK]</span> 192.168.1.105 -> TCP SYN Flood (DoS) — <strong>BLOKLANDI</strong>
+            </div>
+          </div>
+
+          <div class="preview-panel">
+            <div class="panel-title">
+              <span>GEMINI AI RAPORU</span>
+              <span style="color: var(--gold); font-size: 11px;">PRO AKTİF</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 11.5px; line-height: 1.5;">
+              "Saldırgan 192.168.1.105 adresinden sisteminize saniyede 150+ SYN paketi göndererek DoS atağı gerçekleştirdi. EduTrace Otonom Savunma Kalkanı saldırganı Windows Güvenlik Duvarı'nda başarıyla bloke etti."
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Features Section -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-head">
+        <h2>Kurumsal Güvenlik, Kişisel Sadeliğiyle</h2>
+        <p>Gelişmiş siber güvenlik operasyonlarını arka planda otonom olarak yönetin.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3>Gemini AI Siber Savunma Analizi</h3>
+          <p>Yalnızca engellemekle kalmaz; saldırının amacını, kullanılan tekniği (Nmap, SYN Flood, Brute-Force) ve alınması gereken önlemleri Türkçe anlatır.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3>Otonom Savunma (Active Defense)</h3>
+          <p>Tehdit tespit edildiğinde beklemeden saldırgan IP adresini Windows Güvenlik Duvarı'nda otomatik engeller ve kötü amaçlı süreçleri sonlandırır.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📡</div>
+          <h3>Uygulama Ağ Haritası & Görev Yöneticisi</h3>
+          <p>Spotify, Discord, Chrome gibi çalışan uygulamalarınızın hangi uzak IP'lerle iletişim kurduğunu resmi logolarıyla görselleştirir.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Derin İmza Algılama</h3>
+          <p>Nmap NULL, FIN, XMAS gizli taramalarını, yavaş port keşiflerini ve RDP/SMB brute-force girişimlerini kayan pencere hafızasıyla yakalar.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🚀</div>
+          <h3>Arka Planda Gizli & Hafif Servis</h3>
+          <p>Windows Zamanlanmış Görevi olarak yönetici haklarıyla tamamen sessiz çalışır; bilgisayarınızı yormaz, konsol pencereleri açmaz.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Gizlilik & Yerel İşleme</h3>
+          <p>Paket yükleriniz ve özel verileriniz cihazınızdan dışarı çıkmaz. Tüm trafik yerel makinenizde gerçek zamanlı taranır.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <div class="section-head">
+        <h2>Şeffaf ve Adil Fiyatlandırma</h2>
+        <p>İhtiyacınıza uygun planı seçin, dijital güvenliğinizi en üst düzeye çıkarın.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <!-- Free Plan -->
+        <div class="price-card">
+          <div class="price-name">EduTrace Free</div>
+          <div class="price-val">₺0</div>
+          <div class="price-period">Sonsuza kadar ücretsiz</div>
+
+          <ul class="feature-list">
+            <li>✓ Canlı Ağ Radarı & Paket İnceleme</li>
+            <li>✓ Çalışan Uygulama Ağ Haritası</li>
+            <li>✓ Manuel Güvenlik Duvarı Engelleme</li>
+            <li>✓ Temel Tehdit Bildirimleri</li>
+            <li class="disabled">✕ Otonom Active Defense (Otomatik Bloklama)</li>
+            <li class="disabled">✕ Sınırsız Gemini AI Siber Raporu</li>
+            <li class="disabled">✕ Gizli Tarama (Stealth Scan) Derin Analizi</li>
+          </ul>
+
+          <a href="#download" class="btn btn-outline" style="text-align: center; justify-content: center;">Ücretsiz İndir</a>
+        </div>
+
+        <!-- Pro Plan -->
+        <div class="price-card featured">
+          <div class="featured-badge">TAVSİYE EDİLEN</div>
+          <div class="price-name" style="color: var(--gold);">EduTrace PRO</div>
+          <div class="price-val">₺199.99</div>
+          <div class="price-period">Tek Seferlik Ömür Boyu Lisans</div>
+
+          <ul class="feature-list">
+            <li>✓ <strong>Tüm Free Özellikleri</strong></li>
+            <li>✓ <strong>Sınırsız Gemini AI Siber Savunma Analizi</strong></li>
+            <li>✓ <strong>Otonom Active Defense (Sıfır Gecikmeli Bloklama)</strong></li>
+            <li>✓ <strong>Nmap Stealth (NULL/FIN/XMAS) Taraması Koruması</strong></li>
+            <li>✓ <strong>RDP / SMB / SSH Brute-Force Önleme</strong></li>
+            <li>✓ <strong>Öncelikli Güncelleme ve VIP Destek</strong></li>
+          </ul>
+
+          <a href="https://edutrace.lemonsqueezy.com/checkout/buy/ade0fc83-f990-4985-a675-b69ca8a67109" target="_blank" class="btn btn-pro" style="text-align: center; justify-content: center;">Hemen PRO Satın Al</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p style="margin-bottom: 8px;">&copy; 2026 EduTrace XDR Security. Tüm hakları saklıdır.</p>
+      <p style="font-size: 11px;">İletişim & Destek: support@edutrace.local</p>
+    </div>
+  </footer>
+</body>
+</html>
