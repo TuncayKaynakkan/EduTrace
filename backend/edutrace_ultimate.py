@@ -8,14 +8,18 @@ and streams events to the Flutter dashboard over Flask-SocketIO.
 
 from __future__ import annotations
 
+import hmac
 import os
+import secrets
 import socket
+import subprocess
 import sys
 import threading
 import time
 import warnings
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from functools import wraps
 from typing import Any
 
 import ipaddress
@@ -23,7 +27,7 @@ import pandas as pd
 import psutil
 import requests
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, request
 from flask_socketio import SocketIO
 from google import genai
 from scapy.all import IP, TCP, UDP, ICMP, sniff
@@ -112,8 +116,74 @@ socketio = SocketIO(
         app,
         cors_allowed_origins=_cors if _cors else None,
         async_mode="threading",
-        always_connect=True,
+        # Connections stay provisional until the connect handler accepts the token
+        always_connect=False,
 )
+
+# Per-run secret the dashboard must present; empty means every client is refused.
+AUTH_TOKEN = ""
+_yetkili_istemciler: set[str] = set()
+
+
+def token_dosyasi_yolu() -> str:
+    """Location of the token file the Flutter dashboard reads before connecting."""
+    kok = os.getenv("PROGRAMDATA") or os.path.expanduser("~")
+    return os.path.join(kok, "EduTrace", "auth.token")
+
+
+def yetki_tokeni_olustur() -> str:
+    """Create a fresh token and store it where only this user, admins and SYSTEM can read it."""
+    token = secrets.token_urlsafe(32)
+    yol = token_dosyasi_yolu()
+    try:
+        os.makedirs(os.path.dirname(yol), exist_ok=True)
+        # Recreate the file ourselves: a file planted by another user would let its
+        # owner rewrite the permissions and read the token.
+        if os.path.exists(yol):
+            os.remove(yol)
+        os.close(os.open(yol, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        # Lock the empty file down before the secret is written into it
+        if sys.platform == "win32":
+            # %PROGRAMDATA%\EduTrace is writable by all users, so drop inherited rights
+            kullanici = os.getenv("USERNAME", "")
+            sonuc = subprocess.run(
+                ["icacls", yol, "/inheritance:r", "/grant:r",
+                 f"{kullanici}:F", "*S-1-5-32-544:F", "*S-1-5-18:F"],
+                capture_output=True, timeout=10, check=False, shell=False,
+            )
+            if sonuc.returncode != 0:
+                raise OSError(f"icacls basarisiz: {sonuc.stdout or sonuc.stderr}")
+        with open(yol, "w", encoding="utf-8") as f:
+            f.write(token)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"[!] Yetki tokeni yazilamadi, panel baglanamayacak: {exc}")
+    return token
+
+
+@socketio.on("connect")
+def istemci_baglandi(auth: Any = None) -> None:
+    """Accept only clients that present this run's token."""
+    gelen = str(auth.get("token", "")) if isinstance(auth, dict) else ""
+    if not AUTH_TOKEN or not hmac.compare_digest(gelen.encode(), AUTH_TOKEN.encode()):
+        print(f"[!] Yetkisiz Socket.IO baglantisi reddedildi ({request.remote_addr})")
+        raise ConnectionRefusedError("yetkisiz")
+    _yetkili_istemciler.add(request.sid)
+
+
+@socketio.on("disconnect")
+def istemci_ayrildi(*_args: Any) -> None:
+    _yetkili_istemciler.discard(request.sid)
+
+
+def yetkili(handler):
+    """Drop events from clients that did not authenticate (defence in depth)."""
+    @wraps(handler)
+    def sarmalayici(*args: Any, **kwargs: Any) -> Any:
+        if request.sid not in _yetkili_istemciler:
+            print(f"[!] Yetkisiz '{handler.__name__}' istegi yok sayildi.")
+            return None
+        return handler(*args, **kwargs)
+    return sarmalayici
 
 _background_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="edutrace-api")
 _state_lock = threading.Lock()
@@ -313,12 +383,14 @@ tehdit_motoru = TehditAnalizMotoru()
 
 
 @socketio.on("karar_ver")
+@yetkili
 def karar_uygula(_data: dict[str, Any]) -> None:
     """Reject manual intervention requests while autonomous mode is active."""
     print("[!] Manuel mudahale reddedildi. Sistem otonom XDR modunda calisiyor.")
 
 
 @socketio.on("surec_sonlandir")
+@yetkili
 def surec_sonlandir(data: dict[str, Any]) -> None:
     """Terminates process(es) requested by the user from the dashboard."""
     pids = data.get("pids", [])
@@ -355,6 +427,7 @@ def surec_sonlandir(data: dict[str, Any]) -> None:
 
 
 @socketio.on("ip_engelle")
+@yetkili
 def ip_manuel_engelle(data: dict[str, Any]) -> None:
     """Blocks an IP address on Windows Firewall on user request."""
     ip = data.get("ip", "")
@@ -375,6 +448,7 @@ IS_PRO_USER = False
 
 
 @socketio.on("lisans_durumu")
+@yetkili
 def lisans_durumu_al(data: dict[str, Any]) -> None:
     """Updates Pro status and toggles autonomous active defense."""
     global IS_PRO_USER, AUTO_TERMINATE
@@ -388,6 +462,7 @@ def lisans_durumu_al(data: dict[str, Any]) -> None:
 
 
 @socketio.on("dil_degistir")
+@yetkili
 def dil_degistir_al(data: dict[str, Any]) -> None:
     """Updates the active language ('tr' or 'en') for AI generation and system messages."""
     global CURRENT_LANG
@@ -398,6 +473,7 @@ def dil_degistir_al(data: dict[str, Any]) -> None:
 
 
 @socketio.on("simulasyon_baslat")
+@yetkili
 def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
     """Triggers a safe, realistic educational threat simulation showcasing XDR defense."""
     print("[*] Egitici Tehdit Simulasyonu Baslatiliyor...")
@@ -458,6 +534,7 @@ def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
 
 
 @socketio.on("gemini_key_guncelle")
+@yetkili
 def gemini_key_guncelle_al(data: dict[str, Any]) -> None:
     """Updates the Gemini API key in memory and persists to settings."""
     yeni_key = str(data.get("api_key", "")).strip()
@@ -723,6 +800,8 @@ if __name__ == "__main__":
     print("-" * 75)
     print(f"[*] Sistem IP Adresi: {AKTIF_IP}")
     print("-" * 75)
+    AUTH_TOKEN = yetki_tokeni_olustur()
+    print(f"[+] Panel yetki tokeni olusturuldu: {token_dosyasi_yolu()}")
 
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()
     threading.Thread(target=canli_gorev_yoneticisi, daemon=True).start()
