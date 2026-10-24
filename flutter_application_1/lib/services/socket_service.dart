@@ -173,12 +173,33 @@ class SocketService extends ChangeNotifier {
     }
   }
 
+  /// Reads the per-run secret the engine writes to %PROGRAMDATA%\EduTrace\auth.token.
+  ///
+  /// Read on every (re)connect because the engine creates a new token each start.
+  static String _readAuthToken() {
+    try {
+      final root = Platform.environment['PROGRAMDATA'] ??
+          Platform.environment['HOME'] ??
+          '.';
+      final sep = Platform.pathSeparator;
+      final file = File('$root${sep}EduTrace${sep}auth.token');
+      return file.existsSync() ? file.readAsStringSync().trim() : '';
+    } catch (e) {
+      debugPrint('[SocketService] Auth token read error: $e');
+      return '';
+    }
+  }
+
   void _startSocket(String backendUrl) {
     _socket?.dispose();
 
     final socket = io.io(
       backendUrl,
-      io.OptionBuilder().setTransports(['websocket']).enableAutoConnect().build(),
+      io.OptionBuilder()
+          .setTransports(['websocket'])
+          .setAuthFn((callback) => callback({'token': _readAuthToken()}))
+          .enableAutoConnect()
+          .build(),
     );
     _socket = socket;
 
