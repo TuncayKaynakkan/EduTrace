@@ -2,10 +2,9 @@
 name: Backend Tests
 
 on:
+  # No path filter on PRs: these checks are required by the main ruleset, so they
+  # must report on every PR or non-backend PRs would wait for them forever.
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-tests.yml"
   push:
     branches: [main]
     paths:
