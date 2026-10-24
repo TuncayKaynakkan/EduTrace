@@ -603,10 +603,14 @@ def ag_ronto_cek(sure: int) -> dict[str, dict[str, Any]]:
             stats[src_ip]["p"] += 1
 
             if TCP in pkt:
-                dport = pkt[TCP].dport
+                sport, dport = pkt[TCP].sport, pkt[TCP].dport
                 flags = int(pkt[TCP].flags)
-                stats[src_ip]["pt"].add(dport)
-                imza_motoru.kayit_ekle(src_ip, dport, "TCP", flags)
+                if src_ip == AKTIF_IP:
+                    imza_motoru.giden_tcp_kaydet(pkt[IP].dst, dport)
+                # A server's reply lands on our ephemeral port, which is not a scan target
+                if not imza_motoru.tcp_yanit_mi(src_ip, sport, flags):
+                    stats[src_ip]["pt"].add(dport)
+                imza_motoru.kayit_ekle(src_ip, dport, "TCP", flags, sport=sport)
             elif UDP in pkt:
                 sport, dport = pkt[UDP].sport, pkt[UDP].dport
                 if src_ip == AKTIF_IP:
