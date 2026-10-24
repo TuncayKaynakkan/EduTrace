@@ -41,6 +41,11 @@ KRITIK_SERVIS_PORTLARI = {
 }
 
 
+ACK = 0x10
+# Packets answering flows this host started; never counted as attack evidence
+YANIT_PROTOLARI = {"UDP_YANIT", "TCP_YANIT"}
+
+
 class ThreatSignatureEngine:
     """Sliding-window threat analyzer for TCP, UDP and ICMP traffic."""
 
@@ -48,27 +53,48 @@ class ThreatSignatureEngine:
         self.window_seconds = window_seconds
         # ip -> deque of (timestamp, dport, proto, flags)
         self._history: dict[str, deque[tuple[float, int, str, int]]] = defaultdict(deque)
-        # (remote ip, remote port) -> last time this host sent UDP to it.
-        # Lets us tell replies (QUIC video, DNS answers) apart from unsolicited floods.
-        self._giden_udp: dict[tuple[str, int], float] = {}
+        # (proto, remote ip, remote port) -> last time this host sent to it.
+        # Lets us tell replies (QUIC video, DNS answers, web pages) apart from
+        # unsolicited floods and scans.
+        self._giden_akislar: dict[tuple[str, str, int], float] = {}
+
+    def _giden_kaydet(self, proto: str, hedef_ip: str, hedef_port: int) -> None:
+        now = time.time()
+        self._giden_akislar[(proto, hedef_ip, hedef_port)] = now
+        if len(self._giden_akislar) > 5000:
+            cutoff = now - self.window_seconds
+            self._giden_akislar = {k: t for k, t in self._giden_akislar.items() if t >= cutoff}
+
+    def _yanit_mi(self, proto: str, kaynak_ip: str, kaynak_port: int) -> bool:
+        t = self._giden_akislar.get((proto, kaynak_ip, kaynak_port))
+        return t is not None and time.time() - t <= self.window_seconds
 
     def giden_udp_kaydet(self, hedef_ip: str, hedef_port: int) -> None:
         """Remember an outbound UDP flow so its replies are not counted as a flood."""
-        now = time.time()
-        self._giden_udp[(hedef_ip, hedef_port)] = now
-        if len(self._giden_udp) > 5000:
-            cutoff = now - self.window_seconds
-            self._giden_udp = {k: t for k, t in self._giden_udp.items() if t >= cutoff}
+        self._giden_kaydet("UDP", hedef_ip, hedef_port)
 
     def udp_yanit_mi(self, kaynak_ip: str, kaynak_port: int) -> bool:
         """Whether inbound UDP from this ip:port answers a flow this host started."""
-        t = self._giden_udp.get((kaynak_ip, kaynak_port))
-        return t is not None and time.time() - t <= self.window_seconds
+        return self._yanit_mi("UDP", kaynak_ip, kaynak_port)
+
+    def giden_tcp_kaydet(self, hedef_ip: str, hedef_port: int) -> None:
+        """Remember an outbound TCP connection so the server's replies are not a scan."""
+        self._giden_kaydet("TCP", hedef_ip, hedef_port)
+
+    def tcp_yanit_mi(self, kaynak_ip: str, kaynak_port: int, flags: int) -> bool:
+        """Whether inbound TCP from this ip:port answers a connection this host opened.
+
+        Server replies always carry ACK; SYN, NULL, FIN and XMAS probes never do,
+        so a scan sent from a "known" ip:port is still counted.
+        """
+        return bool(flags & ACK) and self._yanit_mi("TCP", kaynak_ip, kaynak_port)
 
     def kayit_ekle(self, ip: str, dport: int, proto: str, flags: int, sport: int = 0) -> None:
         now = time.time()
         if proto == "UDP" and self.udp_yanit_mi(ip, sport):
             proto = "UDP_YANIT"
+        elif proto == "TCP" and self.tcp_yanit_mi(ip, sport, flags):
+            proto = "TCP_YANIT"
         q = self._history[ip]
         q.append((now, dport, proto, flags))
         self._temizle(ip, now)
@@ -92,7 +118,7 @@ class ThreatSignatureEngine:
         now = time.time()
         self._temizle(ip, now)
         # Replies to flows this host started are normal traffic, not attack evidence
-        q = [item for item in self._history.get(ip, deque()) if item[2] != "UDP_YANIT"]
+        q = [item for item in self._history.get(ip, deque()) if item[2] not in YANIT_PROTOLARI]
 
         total_window_packets = len(q)
         window_ports = {item[1] for item in q if item[1] > 0}
