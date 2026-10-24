@@ -1,0 +1,59 @@
+# Runs the Python backend test suite on every pull request and on pushes to main.
+name: Backend Tests
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  workflow_dispatch:
+
+# Least privilege: the job only needs to read the code
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the run that is still going
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (Windows, Python ${{ matrix.python-version }})
+    # EduTrace targets Windows (netsh, icacls, Npcap), so test where it runs
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: Python ${{ matrix.python-version }} kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Bağımlılıkları kur
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Testleri çalıştır
+        run: python -m pytest tests -v
