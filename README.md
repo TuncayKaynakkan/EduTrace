@@ -80,6 +80,39 @@ python -m pytest tests -v
 
 ---
 
+🔬 Canlı Test (25 Ekim 2026)
+
+Birim testlerine ek olarak motor ve panel gerçek bir Windows 11 bilgisayarında, IPv6 destekli bir ev internet bağlantısında (Wi-Fi) birlikte çalıştırıldı. Test boyunca `FIREWALL_BLOCK=false` ve `AUTO_TERMINATE=false` kullanıldı; hiçbir IP engellenmedi, hiçbir süreç kapatılmadı.
+
+Yöntem:
+1. Motor başlatıldı, panel kendi token'ıyla bağlandı; `tools/yetkisiz_istemci.py` ile yetkisiz bağlantılar denendi.
+2. Aynı bilgisayarda YouTube'da bir video oynatılırken 90 saniye boyunca motorun bildirdiği trafik, yetkili bir Socket.IO istemcisiyle kaydedildi.
+3. Motorun gördüğü trafik, Wi-Fi kartının bayt sayacıyla karşılaştırıldı ("alarm yok" sonucunun "görmüyorum" anlamına gelmediğini doğrulamak için).
+
+Bulgular:
+
+| Kontrol | Sonuç |
+|---|---|
+| Token'sız / yanlış token'lı bağlantı | Reddedildi, motor logunda kayıt var |
+| Panelin token ile bağlanması | Başarılı |
+| Paket yakalama kapsamı | Wi-Fi'a gelen baytların ~%100'ü yakalandı; trafiğin **%94'ü IPv6** |
+| IPv6 analizi | İlk testte **hiç yoktu** (kör nokta), [#11](https://github.com/TuncayKaynakkan/EduTrace/pull/11) ile eklendi |
+
+IPv6 desteği öncesi ve sonrası, aynı video ve aynı 90 saniyelik ölçüm:
+
+| | Önce | Sonra |
+|---|---|---|
+| Motorun gördüğü IPv6 sunucu | 0 | 28 |
+| Motorun gördüğü IPv6 paket | 0 | 8.187 |
+| YouTube QUIC sunucusundan (UDP/443) paket | görünmüyordu | 7.577 (~5.000/dk) |
+| Yanlış alarm | 0 (trafiği görmediği için) | 0 (gördü, yanıt olarak doğru sınıflandırdı) |
+
+YouTube'un dakikada ~5.000 paketi, eski UDP flood eşiğinin (dakikada 300) 16 katından fazladır. Durum takipli analiz ([#3](https://github.com/TuncayKaynakkan/EduTrace/pull/3), [#8](https://github.com/TuncayKaynakkan/EduTrace/pull/8)) bu trafiği bilgisayarın kendi açtığı bağlantıların yanıtı olarak tanıdı ve alarm üretmedi.
+
+Sınırlar: Test tek bir bilgisayarda ve tek bir ağda yapıldı. Gerçek bir saldırı trafiği (ör. başka bir cihazdan `hping3`) canlı olarak denenmedi; saldırı tespiti birim testleri ve simülasyonlarla doğrulanmıştır.
+
+---
+
 📋 Güvenlik Değişiklik Günlüğü
 
 | PR | Sorun | Tür |
