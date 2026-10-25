@@ -30,7 +30,7 @@ from dotenv import load_dotenv
 from flask import Flask, request
 from flask_socketio import SocketIO
 from google import genai
-from scapy.all import IP, TCP, UDP, ICMP, sniff
+from scapy.all import IP, IPv6, TCP, UDP, ICMP, ICMPv6EchoRequest, sniff
 from sklearn.ensemble import IsolationForest
 
 import firewall
@@ -206,6 +206,33 @@ def aktif_yerel_ip_bul() -> str:
 
 AKTIF_IP = aktif_yerel_ip_bul()
 BEYAZ_LISTE = ["127.0.0.1", "192.168.1.1", AKTIF_IP, "255.255.255.255"]
+YEREL_ADRES_YENILEME = 60
+
+
+def yerel_adresleri_bul() -> set[str]:
+    """Every IPv4/IPv6 address of this machine.
+
+    An IPv6 host usually has several at once (stable, temporary privacy and
+    link-local fe80:: addresses), and temporary ones rotate, so a single
+    "our IP" is not enough to tell our own traffic apart.
+    """
+    adresler = {"127.0.0.1", "::1", AKTIF_IP}
+    try:
+        for liste in psutil.net_if_addrs().values():
+            for adres in liste:
+                if adres.family not in (socket.AF_INET, socket.AF_INET6):
+                    continue
+                try:
+                    # Drop the "%12" zone index Windows appends to link-local addresses
+                    adresler.add(ipaddress.ip_address(adres.address.split("%")[0]).compressed)
+                except ValueError:
+                    continue
+    except OSError as exc:
+        print(f"[!] Ag arayuzu adresleri okunamadi: {exc}")
+    return adresler
+
+
+YEREL_ADRESLER = yerel_adresleri_bul()
 ENGELLENEN_IPLER: set[str] = set()
 CURRENT_LANG = "tr"
 
@@ -431,7 +458,7 @@ def surec_sonlandir(data: dict[str, Any]) -> None:
 def ip_manuel_engelle(data: dict[str, Any]) -> None:
     """Blocks an IP address on Windows Firewall on user request."""
     ip = data.get("ip", "")
-    if not ip or ip in BEYAZ_LISTE:
+    if not ip or ip in BEYAZ_LISTE or ip in YEREL_ADRESLER:
         socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"{ip} guvenli listede veya gecersiz!"})
         return
 
@@ -593,36 +620,49 @@ def surec_bilgisi_al(hedef_ip: str) -> tuple[str, int | None]:
     return "Bilinmeyen Kaynak", None
 
 
+def ip_adresleri(pkt: Any) -> tuple[str, str] | None:
+    """Source and destination of an IPv4 or IPv6 packet, or ``None`` for anything else."""
+    if IP in pkt:
+        return pkt[IP].src, pkt[IP].dst
+    if IPv6 in pkt:
+        return pkt[IPv6].src, pkt[IPv6].dst
+    return None
+
+
 def ag_ronto_cek(sure: int) -> dict[str, dict[str, Any]]:
-    """Capture TCP, UDP and ICMP packets for ``sure`` seconds and aggregate per source IP."""
-    paketler = sniff(filter="ip", timeout=sure)
+    """Capture IPv4/IPv6 TCP, UDP and ICMP packets for ``sure`` seconds and aggregate per source IP."""
+    paketler = sniff(filter="ip or ip6", timeout=sure)
     stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"p": 0, "pt": set(), "udp_p": 0, "icmp_p": 0})
     for pkt in paketler:
-        if IP in pkt:
-            src_ip = pkt[IP].src
-            stats[src_ip]["p"] += 1
+        adresler = ip_adresleri(pkt)
+        if adresler is None:
+            continue
+        src_ip, dst_ip = adresler
+        bizden = src_ip in YEREL_ADRESLER
+        stats[src_ip]["p"] += 1
 
-            if TCP in pkt:
-                sport, dport = pkt[TCP].sport, pkt[TCP].dport
-                flags = int(pkt[TCP].flags)
-                if src_ip == AKTIF_IP:
-                    imza_motoru.giden_tcp_kaydet(pkt[IP].dst, dport)
-                # A server's reply lands on our ephemeral port, which is not a scan target
-                if not imza_motoru.tcp_yanit_mi(src_ip, sport, flags):
-                    stats[src_ip]["pt"].add(dport)
-                imza_motoru.kayit_ekle(src_ip, dport, "TCP", flags, sport=sport)
-            elif UDP in pkt:
-                sport, dport = pkt[UDP].sport, pkt[UDP].dport
-                if src_ip == AKTIF_IP:
-                    imza_motoru.giden_udp_kaydet(pkt[IP].dst, dport)
-                # On a reply to our own request, dport is just our ephemeral port, not a target
-                if not imza_motoru.udp_yanit_mi(src_ip, sport):
-                    stats[src_ip]["pt"].add(dport)
-                stats[src_ip]["udp_p"] += 1
-                imza_motoru.kayit_ekle(src_ip, dport, "UDP", 0, sport=sport)
-            elif ICMP in pkt:
-                stats[src_ip]["icmp_p"] += 1
-                imza_motoru.kayit_ekle(src_ip, 0, "ICMP", 0)
+        if TCP in pkt:
+            sport, dport = pkt[TCP].sport, pkt[TCP].dport
+            flags = int(pkt[TCP].flags)
+            if bizden:
+                imza_motoru.giden_tcp_kaydet(dst_ip, dport)
+            # A server's reply lands on our ephemeral port, which is not a scan target
+            if not imza_motoru.tcp_yanit_mi(src_ip, sport, flags):
+                stats[src_ip]["pt"].add(dport)
+            imza_motoru.kayit_ekle(src_ip, dport, "TCP", flags, sport=sport)
+        elif UDP in pkt:
+            sport, dport = pkt[UDP].sport, pkt[UDP].dport
+            if bizden:
+                imza_motoru.giden_udp_kaydet(dst_ip, dport)
+            # On a reply to our own request, dport is just our ephemeral port, not a target
+            if not imza_motoru.udp_yanit_mi(src_ip, sport):
+                stats[src_ip]["pt"].add(dport)
+            stats[src_ip]["udp_p"] += 1
+            imza_motoru.kayit_ekle(src_ip, dport, "UDP", 0, sport=sport)
+        # ICMPv6 also carries neighbour discovery and router adverts; only echo requests are pings
+        elif ICMP in pkt or ICMPv6EchoRequest in pkt:
+            stats[src_ip]["icmp_p"] += 1
+            imza_motoru.kayit_ekle(src_ip, 0, "ICMP", 0)
 
     return stats
 
@@ -756,12 +796,17 @@ def canli_gorev_yoneticisi() -> None:
 
 def edutrace_sentinel_motoru() -> None:
     """Main XDR loop: sniff traffic, detect anomalies, and enqueue threat handling."""
-    global _last_npcap_warn
+    global _last_npcap_warn, YEREL_ADRESLER
     print(f"[*] FAZ 1: Baz trafik ogreniliyor (en az {MIN_TRAINING_SAMPLES} ornek)...")
     model_hazir = False
     son_egitim = time.time()
+    son_adres_yenileme = time.time()
     while True:
         su_an = time.time()
+        # Temporary IPv6 addresses rotate; keep our own traffic recognisable
+        if su_an - son_adres_yenileme > YEREL_ADRES_YENILEME:
+            YEREL_ADRESLER = yerel_adresleri_bul()
+            son_adres_yenileme = su_an
         try:
             anlik = ag_ronto_cek(SNIFF_TIMEOUT)
         except Exception as exc:  # Npcap eksik / yetki yok vb.
@@ -782,7 +827,12 @@ def edutrace_sentinel_motoru() -> None:
 
         for ip, veri in anlik.items():
             with _state_lock:
-                if ip in BEYAZ_LISTE or ip in ENGELLENEN_IPLER or ip in _isleniyor:
+                if (
+                    ip in BEYAZ_LISTE
+                    or ip in YEREL_ADRESLER
+                    or ip in ENGELLENEN_IPLER
+                    or ip in _isleniyor
+                ):
                     continue
 
             port_sayisi = len(veri["pt"])
