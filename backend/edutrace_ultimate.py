@@ -10,6 +10,8 @@ over Flask-SocketIO.
 from __future__ import annotations
 
 import hmac
+import importlib
+import importlib.util
 import os
 import secrets
 import socket
@@ -34,6 +36,9 @@ from scapy.all import IP, IPv6, TCP, UDP, ICMP, ICMPv6EchoRequest, sniff
 from sklearn.ensemble import IsolationForest
 
 import firewall
+from ayarlar import GizliAyarlar
+from olay_gecmisi import OlayGecmisi
+from pro_kancalari import ProKancalari
 from threat_intel import TehditListeleri
 from threat_rules import ThreatSignatureEngine, ThreatAlert
 
@@ -101,11 +106,9 @@ GEMINI_MAX_RETRIES = 3
 # Varsayilan olarak yalnizca yerel makineye acik; ag uzerinden erisim icin SERVER_HOST=0.0.0.0
 SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
-# Zararli bulunan sureci otomatik sonlandir (varsayilan: kapali, guvenlik icin)
-# Public IP'yi Windows Guvenlik Duvari'nda engelle (yonetici yetkisi gerekir).
-# Varsayilan kapali: yanlis bir alarm kullanicinin internetini kesmesin, once uyar.
-FIREWALL_BLOCK = os.getenv("FIREWALL_BLOCK", "false").lower() == "true"
-AUTO_TERMINATE = os.getenv("AUTO_TERMINATE", "false").lower() == "true"
+# Automatic firewall blocking and process termination are EduTrace Pro
+# settings (see pro_kancalari.py), off by default so a false positive never
+# cuts the user's connection or kills their program without them opting in.
 KORUNAN_SURECLER = {
     "system", "system idle process", "csrss.exe", "wininit.exe", "winlogon.exe",
     "services.exe", "lsass.exe", "svchost.exe", "explorer.exe", "python.exe",
@@ -449,27 +452,98 @@ def ip_manuel_engelle(data: dict[str, Any]) -> None:
     fw = firewall.ip_engelle(ip)
     with _state_lock:
         ENGELLENEN_IPLER.add(ip)
+    if fw.ok:
+        engeli_kaydet(ip, "Manuel engelleme")
     socketio.emit(
         "islem_bildirimi",
         {"durum": "basarili" if fw.ok else "hata", "mesaj": fw.message},
     )
 
 
-IS_PRO_USER = False
+def _veri_klasoru() -> str:
+    return os.path.join(os.getenv("PROGRAMDATA") or os.path.expanduser("~"), "EduTrace")
+
+
+olay_gecmisi = OlayGecmisi(os.path.join(_veri_klasoru(), "olaylar.db"))
+# Firewall rules outlive the engine, so the list of what EduTrace blocked does too
+engel_kayitlari = GizliAyarlar(os.path.join(_veri_klasoru(), "engellenenler.json"))
+ENGELLENEN_IPLER.update(engel_kayitlari.hepsi())
+
+
+def engeli_kaydet(ip: str, neden: str) -> None:
+    try:
+        engel_kayitlari.guncelle({ip: {"zaman": time.time(), "neden": neden}})
+    except OSError as exc:
+        print(f"[!] Engel kaydi yazilamadi: {exc}")
+
+
+def engellenenleri_gonder() -> None:
+    kayitlar = [
+        {"ip": ip, **bilgi}
+        for ip, bilgi in engel_kayitlari.hepsi().items()
+        if isinstance(bilgi, dict)
+    ]
+    kayitlar.sort(key=lambda k: k.get("zaman", 0), reverse=True)
+    socketio.emit("engellenenler", kayitlar)
+
+
+@socketio.on("engellenenler_iste")
+@yetkili
+def engellenenler_iste(_data: Any = None) -> None:
+    engellenenleri_gonder()
+
+
+@socketio.on("engeli_kaldir")
+@yetkili
+def engeli_kaldir(data: Any) -> None:
+    """Undo a block. Free: every user must be able to reverse a block."""
+    ip = str(data.get("ip", "")) if isinstance(data, dict) else ""
+    if not ip or engel_kayitlari.al(ip) is None:
+        socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"{ip} EduTrace tarafindan engellenmemis."})
+        return
+    fw = firewall.ip_engeli_kaldir(ip)
+    if fw.ok:
+        try:
+            engel_kayitlari.guncelle({ip: None})
+        except OSError as exc:
+            print(f"[!] Engel kaydi silinemedi: {exc}")
+        with _state_lock:
+            ENGELLENEN_IPLER.discard(ip)
+        _last_threat_time.pop(ip, None)
+    socketio.emit("islem_bildirimi", {"durum": "basarili" if fw.ok else "hata", "mesaj": fw.message})
+    engellenenleri_gonder()
+
+
+def gecmis_gunu(data: Any) -> int:
+    """Requested history window, capped by the edition (1 day free)."""
+    try:
+        gun = int(data.get("gun", 1)) if isinstance(data, dict) else 1
+    except (TypeError, ValueError):
+        gun = 1
+    return max(1, min(gun, pro.gecmis_gun_siniri()))
+
+
+@socketio.on("gecmis_iste")
+@yetkili
+def gecmis_iste(data: Any = None) -> None:
+    gun = gecmis_gunu(data)
+    socketio.emit(
+        "gecmis",
+        {"gun": gun, "pro": pro.aktif, "olaylar": olay_gecmisi.listele(gun, limit=500)},
+        to=request.sid,
+    )
 
 
 @socketio.on("lisans_durumu")
 @yetkili
-def lisans_durumu_al(data: dict[str, Any]) -> None:
-    """Updates Pro status and toggles autonomous active defense."""
-    global IS_PRO_USER, AUTO_TERMINATE
-    IS_PRO_USER = bool(data.get("is_pro", False))
-    if IS_PRO_USER:
-        AUTO_TERMINATE = True
-        print("[+] EduTrace PRO Aktif! Otonom Savunma (Active Defense) Devrede.")
-    else:
-        AUTO_TERMINATE = False
-        print("[*] EduTrace Standart (Free) Modunda Calisiyor.")
+def lisans_durumu_al(data: Any) -> None:
+    """The panel forwards the license key; only the Pro add-on can verify it.
+
+    An ``is_pro`` flag from the panel is ignored: the engine never takes the
+    client's word for it.
+    """
+    data = data if isinstance(data, dict) else {}
+    pro.lisans_al(str(data.get("license_key") or ""), str(data.get("instance_id") or ""))
 
 
 @socketio.on("dil_degistir")
@@ -494,14 +568,14 @@ def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
     if CURRENT_LANG == "en":
         saldiri_turu = "Nmap Stealth Scan (SYN/FIN Probe)"
         aciklama = f"Security Simulation: Detected covert port probe from {sim_ip} attempting to map open services."
-        if IS_PRO_USER:
+        if pro.aktif:
             islem_durumu = f"[PRO SHIELD] Autonomous active defense isolated {sim_ip} and intercepted suspicious reconnaissance."
         else:
             islem_durumu = f"Security threat intercepted ({sim_ip}). Threat: {saldiri_turu}."
     else:
         saldiri_turu = "Gizli Ağ Taraması (Nmap Stealth Scan)"
         aciklama = f"Güvenlik Simülasyonu: {sim_ip} adresinden açık portları tespit etmeye çalışan gizli TCP bayrak kombinasyonları yakalandı."
-        if IS_PRO_USER:
+        if pro.aktif:
             islem_durumu = f"[PRO KALKAN] Otonom savunma devreye girdi; {sim_ip} adresi izole edildi ve saldırı engellendi."
         else:
             islem_durumu = f"Dış kaynaklı saldırı engellendi ({sim_ip}). Tehdit: {saldiri_turu}."
@@ -689,6 +763,9 @@ def _tehdit_isle(
 ) -> None:
     """Run threat intelligence, blocking, and educational reporting in background."""
     try:
+        if pro.beyaz_listede(ip):
+            print(f"[~] {ip} kullanicinin beyaz listesinde; alarm yok sayildi.")
+            return
         print(f"\n[!!!] TEHDIT YAKALANDI: {ip} -> {saldiri_turu} (kaynak: {kaynak})")
         istihbarat_raporu = istihbarat_sorgula(ip)
 
@@ -697,6 +774,7 @@ def _tehdit_isle(
                 f"[~] {ip}: ML anomalisi tehdit listelerinde dogrulanmadi; "
                 "engellenmedi, izlenmeye devam ediliyor."
             )
+            olay_gecmisi.kaydet(ip, saldiri_turu, kaynak, aciklama, "Izleniyor (engellenmedi)", False)
             socketio.emit(
                 "islem_bildirimi",
                 {
@@ -713,7 +791,7 @@ def _tehdit_isle(
         print(f"[X] OTONOM MUDAHALE: {ip} ({saldiri_turu}) engelleniyor...")
         if pid and exe_adi.lower() in KORUNAN_SURECLER:
             islem_durumu = f"Korunan sistem sureci ({exe_adi}) sonlandirilmadi; {ip} izleme listesine alindi."
-        elif pid and AUTO_TERMINATE:
+        elif pid and pro.oto_sonlandir():
             try:
                 psutil.Process(int(pid)).terminate()
                 islem_durumu = f"Zararli surec ({exe_adi}) otonom olarak sonlandirildi."
@@ -725,12 +803,14 @@ def _tehdit_isle(
                 f"Saldiri Turu: {saldiri_turu}."
             )
         else:
-            islem_durumu = f"Dis kaynakli saldiri engellendi ({ip}). Tehdit: {saldiri_turu}."
+            islem_durumu = f"Dis kaynakli saldiri tespit edildi ({ip}). Tehdit: {saldiri_turu}."
 
-        if FIREWALL_BLOCK:
+        if pro.oto_firewall():
             fw = firewall.ip_engelle(ip)
             print(f"[*] Guvenlik duvari: {fw.message}")
             islem_durumu += f" {fw.message}"
+            if fw.ok:
+                engeli_kaydet(ip, saldiri_turu)
 
         print("[*] Egitici Asistan (Gemini) rapor hazirliyor...")
         egitici_rapor = egitici_motor.tavsiye_uret(
@@ -746,6 +826,8 @@ def _tehdit_isle(
                 "egitici_rapor": egitici_rapor,
             },
         )
+        olay_gecmisi.kaydet(ip, saldiri_turu, kaynak, aciklama, islem_durumu, True)
+        _background_executor.submit(pro.alarm_sonrasi, ip, saldiri_turu, islem_durumu, aciklama)
     except Exception as exc:
         print(f"[!] Tehdit isleme hatasi ({ip}): {type(exc).__name__}: {exc}")
     finally:
@@ -868,6 +950,22 @@ def edutrace_sentinel_motoru() -> None:
             son_egitim = su_an
 
 
+def pro_eklentisini_yukle() -> ProKancalari:
+    """Use the private EduTrace Pro add-on when it is installed, else the free hooks."""
+    if importlib.util.find_spec("edutrace_pro") is None:
+        print("[*] EduTrace Pro modulu yok; ucretsiz surum calisiyor.")
+        return ProKancalari(socketio)
+    try:
+        return importlib.import_module("edutrace_pro").kur(sys.modules[__name__])
+    except Exception as exc:
+        # A broken add-on must not take detection down with it
+        print(f"[!] EduTrace Pro modulu yuklenemedi ({type(exc).__name__}: {exc}); ucretsiz surum calisiyor.")
+        return ProKancalari(socketio)
+
+
+pro = pro_eklentisini_yukle()
+
+
 if __name__ == "__main__":
     print("EduTrace v1.1.0 [XDR ve AI Egitmen] Baslatiliyor...")
     print("-" * 75)
@@ -879,6 +977,7 @@ if __name__ == "__main__":
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()
     threading.Thread(target=canli_gorev_yoneticisi, daemon=True).start()
     threading.Thread(target=tehdit_listesi_guncelleyici, daemon=True).start()
+    pro.baslat()
     print(f"[*] Radyo Kulesi Yayin Yapiyor -> IP: {SERVER_HOST} Port: {SERVER_PORT}")
     socketio.run(
         app,

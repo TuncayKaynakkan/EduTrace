@@ -7,6 +7,7 @@ import '../services/license_service.dart';
 import '../services/socket_service.dart';
 import '../theme.dart';
 import 'common.dart';
+import 'history_dialog.dart';
 import 'threat_report_dialog.dart';
 
 /// Shows threats handled during this session with attack type badges; tapping opens the AI lesson.
@@ -31,6 +32,14 @@ class ThreatHistoryPanel extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            tooltip: lang.isEnglish ? 'Alert history & reports' : 'Alarm geçmişi ve raporlar',
+            icon: const Icon(Icons.history, size: 16, color: AppColors.textSecondary),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () => HistoryDialog.show(context),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             tooltip: lang.isEnglish ? 'Simulate Threat Attack' : 'Tehdit Simülasyonu Başlat',
             icon: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),

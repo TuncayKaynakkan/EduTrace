@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -203,8 +204,8 @@ class SocketService extends ChangeNotifier {
 
     socket.onConnect((_) {
       _isConnected = true;
-      if (_lastProStatus) {
-        _socket?.emit('lisans_durumu', {'is_pro': true});
+      if (_lastLicense != null) {
+        _socket?.emit('lisans_durumu', _lastLicense);
       }
       if (_lastLangCode != null) {
         _socket?.emit('dil_degistir', {'dil': _lastLangCode});
@@ -263,6 +264,52 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
     });
 
+    socket.on('pro_durumu', (data) {
+      if (data is! Map) {
+        return;
+      }
+      _engineIsPro = data['is_pro'] == true;
+      final bildirim = data['bildirim'];
+      if (bildirim is Map) {
+        _notificationSettings = Map<String, dynamic>.from(bildirim);
+      }
+      final oto = data['oto'];
+      if (oto is Map) {
+        _autoResponse = Map<String, dynamic>.from(oto);
+      }
+      final kurallar = data['kurallar'];
+      if (kurallar is Map) {
+        _rules = Map<String, dynamic>.from(kurallar);
+      }
+      notifyListeners();
+    });
+
+    socket.on('gecmis', (data) {
+      if (data is! Map) {
+        return;
+      }
+      _historyDays = (data['gun'] as num?)?.toInt() ?? 1;
+      final events = data['olaylar'];
+      _history = events is List
+          ? events.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : [];
+      notifyListeners();
+    });
+
+    socket.on('engellenenler', (data) {
+      if (data is! List) {
+        return;
+      }
+      _blockedIps = data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      notifyListeners();
+    });
+
+    socket.on('rapor', (data) {
+      if (data is Map) {
+        _saveReport(Map<String, dynamic>.from(data));
+      }
+    });
+
     socket.on('islem_bildirimi', (data) {
       if (data is! Map) {
         return;
@@ -296,14 +343,132 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  bool _lastProStatus = false;
+  Map<String, String>? _lastLicense;
   String? _lastLangCode;
+  bool _engineIsPro = false;
+  Map<String, dynamic> _notificationSettings = {};
 
-  /// Notifies the backend engine about current Pro license status.
-  void notifyLicenseStatus(bool isPro) {
-    _lastProStatus = isPro;
+  /// Whether the engine itself verified the Pro license with Lemon Squeezy.
+  bool get engineIsPro => _engineIsPro;
+
+  /// Notification settings from the engine; secrets only as `*_tanimli` flags.
+  Map<String, dynamic> get notificationSettings => Map.unmodifiable(_notificationSettings);
+
+  /// Forwards the license key so the engine can verify it on its own.
+  ///
+  /// The engine never trusts an `is_pro` flag from the panel.
+  void notifyLicense(String? licenseKey, String? instanceId) {
+    _lastLicense = {
+      'license_key': licenseKey ?? '',
+      'instance_id': instanceId ?? '',
+    };
     if (_socket != null && _isConnected) {
-      _socket!.emit('lisans_durumu', {'is_pro': isPro});
+      _socket!.emit('lisans_durumu', _lastLicense);
+    }
+  }
+
+  /// Pro: saves Telegram / e-mail settings in the engine. Empty secrets keep the stored value.
+  void saveNotificationSettings(Map<String, dynamic> settings) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('bildirim_ayarla', settings);
+    }
+  }
+
+  List<Map<String, dynamic>> _history = [];
+  int _historyDays = 1;
+
+  /// Stored alerts from the engine's history database, newest first.
+  List<Map<String, dynamic>> get history => List.unmodifiable(_history);
+
+  /// Window the engine actually returned (free is capped at 1 day).
+  int get historyDays => _historyDays;
+
+  /// Asks the engine for the alerts of the last [days] days.
+  void requestHistory(int days) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('gecmis_iste', {'gun': days});
+    }
+  }
+
+  /// Pro: asks the engine for a CSV or PDF report; it is saved to Documents.
+  void requestReport(int days, String format) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('rapor_olustur', {'gun': days, 'bicim': format});
+    }
+  }
+
+  void _saveReport(Map<String, dynamic> data) {
+    try {
+      // Only a plain file name from the engine; never let it pick a directory
+      final name = (data['dosya_adi']?.toString() ?? 'EduTrace-rapor')
+          .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final home = Platform.environment['USERPROFILE'] ?? '.';
+      final dir = Directory('$home\\Documents\\EduTrace');
+      dir.createSync(recursive: true);
+      final file = File('${dir.path}\\$name');
+      file.writeAsBytesSync(base64Decode(data['icerik']?.toString() ?? ''), flush: true);
+      _lastNotification = {'durum': 'basarili', 'mesaj': 'Rapor kaydedildi: ${file.path}'};
+      Process.run('explorer.exe', ['/select,', file.path]);
+    } catch (e) {
+      _lastNotification = {'durum': 'hata', 'mesaj': 'Rapor kaydedilemedi: $e'};
+    }
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _autoResponse = {};
+  List<Map<String, dynamic>> _blockedIps = [];
+
+  /// Pro auto-response switches and whitelist as stored by the engine.
+  Map<String, dynamic> get autoResponse => Map.unmodifiable(_autoResponse);
+
+  /// IPs EduTrace added to Windows Firewall, newest first.
+  List<Map<String, dynamic>> get blockedIps => List.unmodifiable(_blockedIps);
+
+  /// Pro: saves the auto-response switches and whitelist.
+  void saveAutoResponse({
+    required bool firewall,
+    required bool terminate,
+    required List<String> whitelist,
+  }) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('oto_mudahale_ayarla', {
+        'oto_firewall': firewall,
+        'oto_sonlandir': terminate,
+        'beyaz_liste': whitelist,
+      });
+    }
+  }
+
+  /// Asks the engine for the IPs it blocked.
+  void requestBlockedIps() {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('engellenenler_iste', {});
+    }
+  }
+
+  /// Removes EduTrace's firewall rule for [ip].
+  void unblockIp(String ip) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('engeli_kaldir', {'ip': ip});
+    }
+  }
+
+  Map<String, dynamic> _rules = {};
+
+  /// Pro rule settings: `esikler` (effective), `varsayilan` and `kurallar`.
+  Map<String, dynamic> get rules => Map.unmodifiable(_rules);
+
+  /// Pro: saves tuned thresholds and custom port rules; the engine validates them.
+  void saveRules(Map<String, int> thresholds, List<Map<String, dynamic>> rules) {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('kurallar_ayarla', {'esikler': thresholds, 'kurallar': rules});
+    }
+  }
+
+  /// Pro: sends a test message to every configured channel.
+  void sendTestNotification() {
+    if (_socket != null && _isConnected) {
+      _socket!.emit('bildirim_test', {});
     }
   }
 

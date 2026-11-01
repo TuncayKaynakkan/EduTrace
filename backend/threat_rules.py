@@ -41,6 +41,28 @@ KRITIK_SERVIS_PORTLARI = {
 }
 
 
+# Detection thresholds per 60 s window; Pro users can tune them in the panel
+VARSAYILAN_ESIKLER = {
+    "icmp": 60,               # ping flood: more than this many echo requests
+    "udp": 300,               # UDP flood: more than this many unsolicited packets
+    "gizli_tarama": 5,        # NULL/FIN/XMAS probes
+    "kritik_servis": 25,      # packets to one critical port (RDP, SMB, SSH...)
+    "syn": 150,               # bare SYN packets
+    "yavas_tarama_port": 20,  # distinct ports for a low-and-slow scan...
+    "yavas_tarama_paket": 30,  # ...with at least this many packets
+}
+
+
+@dataclass(frozen=True)
+class OzelKural:
+    """User rule: alert when one IP sends ``esik`` packets to ``port`` in the window."""
+    ad: str
+    port: int
+    proto: str  # TCP, UDP or HEPSI
+    esik: int
+    siddet: str = "ORTA"
+
+
 ACK = 0x10
 # Packets answering flows this host started; never counted as attack evidence
 YANIT_PROTOLARI = {"UDP_YANIT", "TCP_YANIT"}
@@ -51,12 +73,19 @@ class ThreatSignatureEngine:
 
     def __init__(self, window_seconds: int = 60) -> None:
         self.window_seconds = window_seconds
+        self.esikler: dict[str, int] = dict(VARSAYILAN_ESIKLER)
+        self.ozel_kurallar: list[OzelKural] = []
         # ip -> deque of (timestamp, dport, proto, flags)
         self._history: dict[str, deque[tuple[float, int, str, int]]] = defaultdict(deque)
         # (proto, remote ip, remote port) -> last time this host sent to it.
         # Lets us tell replies (QUIC video, DNS answers, web pages) apart from
         # unsolicited floods and scans.
         self._giden_akislar: dict[tuple[str, str, int], float] = {}
+
+    def ayarla(self, esikler: dict[str, int] | None = None, kurallar: list[OzelKural] | None = None) -> None:
+        """Apply tuned thresholds and user rules; ``None`` restores the defaults."""
+        self.esikler = {**VARSAYILAN_ESIKLER, **(esikler or {})}
+        self.ozel_kurallar = list(kurallar or [])
 
     def _giden_kaydet(self, proto: str, hedef_ip: str, hedef_port: int) -> None:
         now = time.time()
@@ -126,7 +155,7 @@ class ThreatSignatureEngine:
 
         # 1. ICMP / Ping Flood Detection
         icmp_count = sum(1 for item in q if item[2] == "ICMP")
-        if icmp_count > 60:
+        if icmp_count > self.esikler["icmp"]:
             return ThreatAlert(
                 ip=ip,
                 attack_type="ICMP Ping Flood (DoS)",
@@ -137,7 +166,7 @@ class ThreatSignatureEngine:
 
         # 2. UDP Flood / DNS Amplification
         udp_count = sum(1 for item in q if item[2] == "UDP")
-        if udp_count > 300:
+        if udp_count > self.esikler["udp"]:
             return ThreatAlert(
                 ip=ip,
                 attack_type="UDP Flood / DDoS",
@@ -155,7 +184,7 @@ class ThreatSignatureEngine:
         xmas_scans = sum(1 for item in q if item[2] == "TCP" and item[3] == 0x29)
         fin_scans = sum(1 for item in q if item[2] == "TCP" and item[3] == 0x01)
 
-        if (null_scans + xmas_scans + fin_scans) >= 5:
+        if (null_scans + xmas_scans + fin_scans) >= self.esikler["gizli_tarama"]:
             return ThreatAlert(
                 ip=ip,
                 attack_type="Gizli Ag Taramasi (Nmap Stealth Scan)",
@@ -168,7 +197,7 @@ class ThreatSignatureEngine:
         # 4. Critical Service Brute Force / Targeted Scan (RDP, SMB, SSH)
         for target_port, service_name in KRITIK_SERVIS_PORTLARI.items():
             targeted = sum(1 for item in q if item[1] == target_port)
-            if targeted >= 25:
+            if targeted >= self.esikler["kritik_servis"]:
                 return ThreatAlert(
                     ip=ip,
                     attack_type=f"Hedefli Saldiri: {service_name}",
@@ -178,9 +207,25 @@ class ThreatSignatureEngine:
                     target_ports=[target_port],
                 )
 
-        # 5. SYN Flood / DoS
+        # 5. User rules (Pro): targeted traffic to a port the user cares about
+        for kural in self.ozel_kurallar:
+            sayi = sum(
+                1 for item in q
+                if item[1] == kural.port and (kural.proto == "HEPSI" or item[2] == kural.proto)
+            )
+            if sayi >= kural.esik:
+                return ThreatAlert(
+                    ip=ip,
+                    attack_type=f"Ozel Kural: {kural.ad}",
+                    severity=kural.siddet,
+                    description=f"{ip} adresinden {kural.port}/{kural.proto} portuna {sayi} paket gonderildi (esik {kural.esik}).",
+                    packet_count=sayi,
+                    target_ports=[kural.port],
+                )
+
+        # 6. SYN Flood / DoS
         syn_only = sum(1 for item in q if item[2] == "TCP" and item[3] == 0x02)
-        if syn_only >= 150:
+        if syn_only >= self.esikler["syn"]:
             return ThreatAlert(
                 ip=ip,
                 attack_type="TCP SYN Flood (DoS)",
@@ -189,8 +234,11 @@ class ThreatSignatureEngine:
                 packet_count=syn_only,
             )
 
-        # 6. Sliding-Window Slow Port Scan (Low & Slow Scan)
-        if len(window_ports) >= 20 and total_window_packets >= 30:
+        # 7. Sliding-Window Slow Port Scan (Low & Slow Scan)
+        if (
+            len(window_ports) >= self.esikler["yavas_tarama_port"]
+            and total_window_packets >= self.esikler["yavas_tarama_paket"]
+        ):
             return ThreatAlert(
                 ip=ip,
                 attack_type="Yavas Ag Taramasi (Low & Slow Port Scan)",
