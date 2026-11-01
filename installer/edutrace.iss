@@ -1,6 +1,6 @@
 ; EduTrace installer (Inno Setup 6)
 #define AppName "EduTrace"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define AppPublisher "EduTrace"
 
 [Setup]
@@ -19,7 +19,6 @@ PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayName={#AppName}
 SetupIconFile=..\flutter_application_1\windows\runner\resources\app_icon.ico
-UninstallIconFile=..\flutter_application_1\windows\runner\resources\app_icon.ico
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -29,7 +28,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescription: "Ek görevler:"
 
 [Dirs]
-Name: "{commonappdata}\EduTrace"; Permissions: users-modify
+; No extra rights for Users: the elevated engine reads .env from here, so a
+; standard user must not be able to change it (see the icacls lines in [Run]).
+Name: "{commonappdata}\EduTrace"
 
 [Files]
 Source: "build\EduTraceEngine\*"; DestDir: "{app}\engine"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -39,19 +40,23 @@ Source: "..\backend\.env.example"; DestDir: "{commonappdata}\EduTrace"; DestName
 [Icons]
 Name: "{group}\EduTrace"; Filename: "{app}\app\EduTrace.exe"
 Name: "{group}\EduTrace Motoru (Yonetici)"; Filename: "{app}\engine\EduTraceEngine.exe"; WorkingDir: "{app}\engine"
-Name: "{group}\Ayar dosyasi (.env)"; Filename: "notepad.exe"; Parameters: """{commonappdata}\EduTrace\.env"""
+Name: "{group}\Ayar dosyasi (.env, duzenlemek icin yonetici)"; Filename: "notepad.exe"; Parameters: """{commonappdata}\EduTrace\.env"""
 Name: "{group}\{#AppName} Kaldir"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\EduTrace"; Filename: "{app}\app\EduTrace.exe"; Tasks: desktopicon
 
 [Run]
+; 1.0.0 gave Users "modify" on the data folder; drop that explicit grant on upgrade.
+Filename: "icacls"; Parameters: """{commonappdata}\EduTrace"" /remove:g *S-1-5-32-545"; Flags: runhidden
+; .env: Administrators and SYSTEM full control, Users read-only (S-1-5-32-545 = Users).
+Filename: "icacls"; Parameters: """{commonappdata}\EduTrace\.env"" /inheritance:r /grant:r *S-1-5-32-544:F *S-1-5-18:F *S-1-5-32-545:R"; Flags: runhidden
 Filename: "schtasks"; Parameters: "/Create /TN ""EduTraceEngine"" /TR """"{app}\engine\EduTraceEngine.exe"""" /SC ONLOGON /RL HIGHEST /F"; Flags: runhidden
 Filename: "https://npcap.com/#download"; Description: "Npcap indir (paket yakalama surucusu)"; Flags: postinstall shellexec skipifsilent; Check: not IsNpcapInstalled
 Filename: "{app}\engine\EduTraceEngine.exe"; Description: "EduTrace motorunu baslat"; Flags: postinstall nowait skipifsilent runascurrentuser
 Filename: "{app}\app\EduTrace.exe"; Description: "EduTrace panelini ac"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
-Filename: "schtasks"; Parameters: "/Delete /TN ""EduTraceEngine"" /F"; Flags: runhidden
-Filename: "taskkill"; Parameters: "/F /IM EduTraceEngine.exe"; Flags: runhidden
+Filename: "schtasks"; Parameters: "/Delete /TN ""EduTraceEngine"" /F"; Flags: runhidden; RunOnceId: "DeleteEngineTask"
+Filename: "taskkill"; Parameters: "/F /IM EduTraceEngine.exe"; Flags: runhidden; RunOnceId: "KillEngine"
 
 [Code]
 function IsNpcapInstalled(): Boolean;
