@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../services/language_service.dart';
 import '../services/license_service.dart';
 import '../theme.dart';
-import 'ai_settings_dialog.dart';
 
 /// Modal dialog for activating, purchasing, and managing EduTrace PRO licenses.
 class LicenseDialog extends StatefulWidget {
@@ -171,11 +170,11 @@ class _LicenseDialogState extends State<LicenseDialog> {
                         Text(
                           isPro
                               ? (lang.isEnglish
-                                  ? 'All autonomous defense and AI features unlocked.'
-                                  : 'Tüm otonom savunma ve yapay zeka özellikleri aktif.')
+                                  ? 'Pro features are active. Open their settings with the ⚙ icon next to PRO.'
+                                  : 'Pro özellikleri aktif. Ayarları PRO yanındaki ⚙ simgesinden açabilirsin.')
                               : (lang.isEnglish
-                                  ? 'Advanced threat defense & unlimited AI incident coaching.'
-                                  : 'Gelişmiş saldırı koruması ve sınırsız AI eğitmeni.'),
+                                  ? 'Alerts on your phone, 30-day history, auto response and custom rules.'
+                                  : 'Telefona alarm, 30 gün geçmiş, otomatik müdahale ve özel kurallar.'),
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -203,59 +202,48 @@ class _LicenseDialogState extends State<LicenseDialog> {
                 child: Column(
                   children: [
                     _FeatureRow(
-                      icon: Icons.auto_awesome,
-                      title: lang.isEnglish
-                          ? 'Unlimited Gemini AI Threat Analysis'
-                          : 'Sınırsız Gemini AI Siber Savunma Analizi',
+                      icon: Icons.notifications_active_outlined,
+                      title: lang.isEnglish ? 'Telegram & E-mail Alerts' : 'Telegram ve E-posta Bildirimi',
                       subtitle: lang.isEnglish
-                          ? 'Deeply explains attack techniques and mitigation strategies in clear language.'
-                          : 'Saldırıların tekniğini ve savunma stratejisini detaylı açıklar.',
-                      isUnlocked: isPro,
-                      action: InkWell(
-                        onTap: () => AiSettingsDialog.show(context),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.key, size: 12, color: AppColors.accent),
-                              const SizedBox(width: 5),
-                              Text(
-                                lang.hasCustomGeminiKey
-                                    ? (lang.isEnglish ? 'Personal API Key Active (Change)' : 'Özel API Anahtarı Aktif (Değiştir)')
-                                    : (lang.isEnglish ? 'Configure Gemini AI Key' : 'Gemini API Anahtarı Ekle / Yapılandır'),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Divider(color: AppColors.border, height: 16),
-                    _FeatureRow(
-                      icon: Icons.shield,
-                      title: lang.isEnglish
-                          ? 'Autonomous Active Defense'
-                          : 'Otonom Savunma (Active Defense)',
-                      subtitle: lang.isEnglish
-                          ? 'Instantly intercepts attacker IPs and malicious processes with zero latency.'
-                          : 'Saldırgan IP adresini ve zararlı süreçleri sıfır gecikmeyle engeller.',
+                          ? 'Get told about an attack even when you are away from the computer.'
+                          : 'Bilgisayar başında değilken de saldırı haberi telefonuna veya e-postana gelir.',
                       isUnlocked: isPro,
                     ),
                     const Divider(color: AppColors.border, height: 16),
                     _FeatureRow(
-                      icon: Icons.radar,
-                      title: lang.isEnglish ? 'Deep Attack Signatures' : 'Derin Saldırı İmzaları',
+                      icon: Icons.history,
+                      title: lang.isEnglish ? '30-Day History & CSV/PDF Reports' : '30 Gün Geçmiş ve CSV/PDF Rapor',
                       subtitle: lang.isEnglish
-                          ? 'Nmap Stealth (NULL/FIN/XMAS), Slow Scan, and Brute-Force detection.'
-                          : 'Nmap Stealth (NULL/FIN/XMAS), Slow Scan ve Brute-Force algılama.',
+                          ? 'The free plan shows the last 24 hours; Pro keeps 30 days and exports reports.'
+                          : 'Ücretsiz plan son 24 saati gösterir; Pro 30 günü saklar ve rapor çıkarır.',
                       isUnlocked: isPro,
+                    ),
+                    const Divider(color: AppColors.border, height: 16),
+                    _FeatureRow(
+                      icon: Icons.shield_outlined,
+                      title: lang.isEnglish ? 'Automatic Response (opt-in)' : 'Otomatik Müdahale (isteğe bağlı)',
+                      subtitle: lang.isEnglish
+                          ? 'When you turn it on, attacker IPs are blocked in Windows Firewall and the process '
+                              'behind an attack is stopped. Whitelist exceptions; every block can be undone.'
+                          : "Açarsan saldırgan IP Windows Güvenlik Duvarı'nda engellenir, saldırıya aracılık eden "
+                              'süreç durdurulur. Beyaz listeyle istisna tanımlanır; her engel geri alınabilir.',
+                      isUnlocked: isPro,
+                    ),
+                    const Divider(color: AppColors.border, height: 16),
+                    _FeatureRow(
+                      icon: Icons.tune,
+                      title: lang.isEnglish ? 'Custom Rule Editor' : 'Özel Kural Editörü',
+                      subtitle: lang.isEnglish
+                          ? 'Tune detection thresholds and write your own port rules.'
+                          : 'Algılama eşiklerini ayarla, kendi port kurallarını yaz.',
+                      isUnlocked: isPro,
+                    ),
+                    const Divider(color: AppColors.border, height: 16),
+                    Text(
+                      lang.isEnglish
+                          ? 'Live detection, attack signatures, threat lists and AI lessons are free for everyone.'
+                          : 'Canlı tespit, saldırı imzaları, tehdit listeleri ve AI eğitim raporu herkes için ücretsiz.',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -348,7 +336,7 @@ class _LicenseDialogState extends State<LicenseDialog> {
                   decoration: InputDecoration(
                     labelText: lang.isEnglish ? 'License Key' : 'Lisans Anahtarı',
                     labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    hintText: 'EDUPRO-XXXX-XXXX-XXXX',
+                    hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
                     hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     filled: true,
                     fillColor: AppColors.background,
@@ -430,14 +418,12 @@ class _FeatureRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool isUnlocked;
-  final Widget? action;
 
   const _FeatureRow({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.isUnlocked,
-    this.action,
   });
 
   @override
@@ -478,10 +464,6 @@ class _FeatureRow extends StatelessWidget {
                 subtitle,
                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
-              if (action != null) ...[
-                const SizedBox(height: 4),
-                action!,
-              ],
             ],
           ),
         ),
