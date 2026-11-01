@@ -12,7 +12,9 @@ Set-Location $root
 Write-Host '== 1/3 Backend (PyInstaller) ==' -ForegroundColor Cyan
 Set-Location "$root\backend"
 python -m pip install -q -r requirements.txt pyinstaller
-python -m PyInstaller --noconfirm --clean --onedir --noconsole --name EduTraceEngine `
+# --noupx: UPX-packed binaries that sniff traffic and change the firewall are a classic
+# antivirus false positive; the size saving is not worth it.
+python -m PyInstaller --noconfirm --clean --onedir --noconsole --noupx --name EduTraceEngine `
   --collect-submodules engineio --collect-submodules socketio `
   --collect-all scapy --hidden-import sklearn.ensemble --hidden-import google.genai `
   --distpath "$root\installer\build" --workpath "$root\installer\build\work" `

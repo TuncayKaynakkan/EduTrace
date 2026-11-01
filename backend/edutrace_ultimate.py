@@ -869,7 +869,7 @@ def edutrace_sentinel_motoru() -> None:
 
 
 if __name__ == "__main__":
-    print("EduTrace v10.0 [Tam Otonom XDR ve AI Egitmen] Baslatiliyor...")
+    print("EduTrace v1.1.0 [XDR ve AI Egitmen] Baslatiliyor...")
     print("-" * 75)
     print(f"[*] Sistem IP Adresi: {AKTIF_IP}")
     print("-" * 75)
