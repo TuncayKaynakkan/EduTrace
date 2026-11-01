@@ -66,6 +66,16 @@ begin
             RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\npcap');
 end;
 
+// Upgrades replace EduTraceEngine.exe, which the running engine keeps locked
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec('schtasks', '/End /TN "EduTraceEngine"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill', '/F /IM EduTraceEngine.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ErrorCode: Integer;

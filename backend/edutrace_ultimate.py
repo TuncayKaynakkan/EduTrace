@@ -965,8 +965,46 @@ def pro_eklentisini_yukle() -> ProKancalari:
 
 pro = pro_eklentisini_yukle()
 
+TEK_ORNEK_ADI = "EduTraceEngine"
+_tek_ornek_tutamaci: Any = None
+
+
+def tek_ornek_kilidi_al(ad: str = TEK_ORNEK_ADI) -> bool:
+    """Whether this is the only engine running.
+
+    A second engine would overwrite auth.token with a token the engine that
+    owns port 5000 does not know, and the panel could never connect. That
+    happens when the installer and the panel both start the engine at once.
+    """
+    global _tek_ornek_tutamaci
+    if sys.platform != "win32":
+        return True
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    tutamac = kernel32.CreateMutexW(None, False, f"Global\\{ad}")
+    hata = ctypes.get_last_error()
+    # 183: another engine created it. 5: an elevated engine owns it and this
+    # unelevated one may not open it, which also means one is already running.
+    if hata in (183, 5):
+        if tutamac:
+            kernel32.CloseHandle(tutamac)
+        return False
+    if not tutamac:
+        # Cannot create a lock at all: running unguarded beats not running
+        print(f"[!] Tek kopya kilidi olusturulamadi (hata {hata}); devam ediliyor.")
+        return True
+    _tek_ornek_tutamaci = tutamac
+    return True
+
 
 if __name__ == "__main__":
+    if not tek_ornek_kilidi_al():
+        print("[*] EduTrace motoru zaten calisiyor; bu kopya kapaniyor.")
+        sys.exit(0)
     print("EduTrace v1.2.0 [XDR ve AI Egitmen] Baslatiliyor...")
     print("-" * 75)
     print(f"[*] Sistem IP Adresi: {AKTIF_IP}")
