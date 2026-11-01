@@ -29,9 +29,9 @@ def test_engelleme_karari(kaynak, skor, beklenen):
 
 
 @pytest.fixture
-def ortam(monkeypatch):
+def ortam(monkeypatch, sahte_pro):
     engellenen, olaylar, raporlar = [], [], []
-    monkeypatch.setattr(et, "FIREWALL_BLOCK", True)
+    sahte_pro(firewall=True)
     monkeypatch.setattr(et, "ENGELLENEN_IPLER", set())
     monkeypatch.setattr(
         et.firewall, "ip_engelle",

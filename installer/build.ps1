@@ -12,11 +12,26 @@ Set-Location $root
 Write-Host '== 1/3 Backend (PyInstaller) ==' -ForegroundColor Cyan
 Set-Location "$root\backend"
 python -m pip install -q -r requirements.txt pyinstaller
+
+# The closed-source Pro add-on lives in a private repo next to this one
+# (or wherever EDUTRACE_PRO points). Without it the build is the free edition.
+$proDir = if ($env:EDUTRACE_PRO) { $env:EDUTRACE_PRO } else { Join-Path (Split-Path -Parent $root) 'EduTrace-Pro' }
+$proArgs = @()
+if (Test-Path (Join-Path $proDir 'edutrace_pro\__init__.py')) {
+  Write-Host "   Pro eklentisi ekleniyor: $proDir" -ForegroundColor Yellow
+  python -m pip install -q -r (Join-Path $proDir 'requirements.txt')
+  $proArgs = @('--paths', $proDir, '--hidden-import', 'edutrace_pro', '--collect-submodules', 'edutrace_pro',
+               '--collect-submodules', 'reportlab')
+} else {
+  Write-Host '   Pro eklentisi bulunamadi: ucretsiz surum derleniyor.' -ForegroundColor Yellow
+}
+
 # --noupx: UPX-packed binaries that sniff traffic and change the firewall are a classic
 # antivirus false positive; the size saving is not worth it.
 python -m PyInstaller --noconfirm --clean --onedir --noconsole --noupx --name EduTraceEngine `
   --collect-submodules engineio --collect-submodules socketio `
   --collect-all scapy --hidden-import sklearn.ensemble --hidden-import google.genai `
+  @proArgs `
   --distpath "$root\installer\build" --workpath "$root\installer\build\work" `
   --icon "$root\flutter_application_1\windows\runner\resources\app_icon.ico" `
   --specpath "$root\installer\build" edutrace_ultimate.py

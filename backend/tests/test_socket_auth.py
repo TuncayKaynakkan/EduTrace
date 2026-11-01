@@ -16,8 +16,6 @@ TOKEN = "test-token-123"
 @pytest.fixture(autouse=True)
 def _token(monkeypatch):
     monkeypatch.setattr(et, "AUTH_TOKEN", TOKEN)
-    monkeypatch.setattr(et, "AUTO_TERMINATE", False)
-    monkeypatch.setattr(et, "IS_PRO_USER", False)
 
 
 def test_tokensiz_istemci_baglanamaz():
@@ -35,14 +33,17 @@ def test_tokensiz_istemci_otonom_savunmayi_acamaz():
     if istemci.is_connected():
         # The attack: any local program claims to be "Pro" and turns on process killing
         istemci.emit("lisans_durumu", {"is_pro": True})
-    assert et.AUTO_TERMINATE is False
+    assert et.pro.aktif is False
 
 
 def test_dogru_token_ile_panel_calisir():
     istemci = et.socketio.test_client(et.app, auth={"token": TOKEN})
     assert istemci.is_connected()
-    istemci.emit("lisans_durumu", {"is_pro": True})
-    assert et.AUTO_TERMINATE is True
+    # Even an authenticated panel cannot just claim Pro
+    istemci.emit("lisans_durumu", {"is_pro": True, "license_key": "X", "instance_id": "i"})
+    durum = [e["args"][0] for e in istemci.get_received() if e["name"] == "pro_durumu"]
+    assert durum and durum[0]["is_pro"] is False
+    assert et.pro.aktif is False
     istemci.disconnect()
 
 
@@ -59,4 +60,4 @@ def test_yetkisiz_olay_dogrudan_cagrilsa_da_islenmez():
         from flask import request
         request.sid = "kimligi-dogrulanmamis"
         et.lisans_durumu_al({"is_pro": True})
-    assert et.AUTO_TERMINATE is False
+    assert et.pro.aktif is False

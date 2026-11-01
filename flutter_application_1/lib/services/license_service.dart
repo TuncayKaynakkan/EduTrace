@@ -45,6 +45,9 @@ class LicenseService extends ChangeNotifier {
   /// The active license key (partially masked for display).
   String? get licenseKey => _licenseKey;
 
+  /// Lemon Squeezy activation id of this machine.
+  String? get instanceId => _instanceId;
+
   /// Masked license key for display in settings (e.g. "EDUPRO-****-****-2026").
   String get maskedLicenseKey {
     if (_licenseKey == null || _licenseKey!.length < 8) return '—';

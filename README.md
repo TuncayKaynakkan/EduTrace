@@ -18,6 +18,23 @@ Proje; modern ve sezgisel bir mobil/masaüstü kullanıcı arayüzü ile güçl�
 
 ---
 
+⭐ Ücretsiz ve Pro
+
+| Özellik | Ücretsiz | Pro |
+|---|---|---|
+| Canlı trafik analizi, imza kuralları, ML anomali tespiti | ✓ | ✓ |
+| Çevrimdışı tehdit listeleri, AI eğitim raporu | ✓ | ✓ |
+| Manuel IP engelleme ve engeli geri alma | ✓ | ✓ |
+| Alarm geçmişi | Son 24 saat | 30 gün |
+| CSV / PDF rapor | | ✓ |
+| Telegram ve e-posta alarm bildirimi | | ✓ |
+| Otomatik firewall engelleme ve süreç sonlandırma, beyaz liste | | ✓ |
+| Özel kural editörü (eşikler ve port kuralları) | | ✓ |
+
+EduTrace open-core olarak geliştirilir: motor ve panel bu depoda MIT lisansıyla açıktır, Pro özellikleri ise kurulum dosyasına eklenen kapalı kaynak bir eklentidir. Motor eklentiyi `pro_kancalari.py` arayüzü üzerinden çağırır; eklenti yoksa ücretsiz sürüm olarak çalışır.
+
+---
+
  🛠️ Mimari ve Teknolojiler
 
 Proje iki ana bileşenden oluşmaktadır:
@@ -46,11 +63,12 @@ Proje iki ana bileşenden oluşmaktadır:
 EduTrace yönetici yetkisiyle çalışıp firewall kuralı ekleyebildiği için motorun kendisi de bir saldırı yüzeyidir. Bu yüzden şu kurallara göre tasarlanmıştır:
 
 - Kimlik doğrulamalı yerel API: Motor her açılışta rastgele bir token üretir ve `%PROGRAMDATA%\EduTrace\auth.token` dosyasına yazar. Dosyayı yalnızca çalıştıran kullanıcı, Administrators ve SYSTEM okuyabilir. Token'ı göndermeyen istemciler reddedilir; token oluşturulamazsa herkes reddedilir (fail closed).
-- Kanıtın gücüne göre müdahale: İmza kuralı (SYN flood, XMAS tarama vb.) ve hacim eşiği alarmları doğrudan engellenir. Makine öğrenmesi anomalileri ise yalnızca IP bir tehdit listesinde yer alıyorsa engellenir; aksi halde kullanıcıya bildirilir ve izlenir.
+- Kanıtın gücüne göre müdahale: İmza kuralı (SYN flood, XMAS tarama vb.) ve hacim eşiği alarmları doğrudan müdahale kararına gider. Makine öğrenmesi anomalilerinde ise müdahale yalnızca IP bir tehdit listesinde yer alıyorsa yapılır; aksi halde kullanıcıya bildirilir ve izlenir.
 - Çevrimdışı tehdit istihbaratı: Spamhaus DROP (IPv4/IPv6) ve abuse.ch Feodo Tracker listeleri 12 saatte bir indirilir ve kontrol bilgisayarın içinde yapılır; bağlanılan IP adresleri hiçbir servise gönderilmez, API anahtarı gerekmez.
 - IPv4 ve IPv6 kapsamı: Trafik her iki protokolde de analiz edilir. Bilgisayarın tüm adresleri (geçici ve link-local IPv6 adresleri dahil) dakikada bir yenilenir; komşu keşfi (NDP) gibi ICMPv6 kontrol mesajları ping sayılmaz.
 - Durum takipli (stateful) analiz: Bilgisayarın başlattığı UDP/TCP akışlarının yanıtları (QUIC video, DNS, CDN) saldırı sayılmaz. Yanıt sayılmak için TCP paketinin ACK bayrağı taşıması gerekir; böylece tanıdık bir adresten gelen SYN/NULL/FIN/XMAS taramaları da yakalanır.
-- Güvenli firewall kullanımı: Otomatik engelleme varsayılan olarak kapalıdır (`FIREWALL_BLOCK=false`); motor önce uyarır, kullanıcı isterse açar. Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
+- Güvenli firewall kullanımı: Otomatik engelleme ve süreç sonlandırma varsayılan olarak kapalıdır; motor önce uyarır, Pro kullanıcı isterse panelden açar. Her engel panelden geri alınabilir (ücretsiz). Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
+- Lisans motor tarafında doğrulanır: Panel motora "Pro'yum" diyemez; yalnızca lisans anahtarını iletir. Motor anahtarı Lemon Squeezy'ye kendisi sorar ve anahtarın EduTrace mağazasına ait olduğunu kontrol eder.
 - Yalnızca yerel bağlantı: Panel sadece aynı bilgisayardaki motora (`127.0.0.1`) bağlanır; yerel ağı taramaz ve token'ı başka bir cihaza göndermez.
 - Koda gömülü sır yok: API anahtarları `.env` dosyasından okunur; geliştirici lisans anahtarı yalnızca debug derlemesinde `--dart-define` ile verilir.
 

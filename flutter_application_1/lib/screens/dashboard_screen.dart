@@ -9,6 +9,7 @@ import '../widgets/ai_settings_dialog.dart';
 import '../widgets/connection_status_badge.dart';
 import '../widgets/language_select_dialog.dart';
 import '../widgets/license_dialog.dart';
+import '../widgets/pro_settings_dialog.dart';
 import '../widgets/process_list_panel.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/threat_history_panel.dart';
@@ -37,12 +38,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final languageService = context.read<LanguageService>();
       _socketService = socketService;
       socketService.addListener(_onSocketUpdate);
-      socketService.notifyLicenseStatus(licenseService.isPro);
+      socketService.notifyLicense(
+        licenseService.isPro ? licenseService.licenseKey : null,
+        licenseService.instanceId,
+      );
       socketService.emitLanguageChange(languageService.currentLanguage.code);
 
       licenseService.addListener(() {
         if (mounted) {
-          socketService.notifyLicenseStatus(licenseService.isPro);
+          socketService.notifyLicense(
+            licenseService.isPro ? licenseService.licenseKey : null,
+            licenseService.instanceId,
+          );
         }
       });
       languageService.addListener(() {
@@ -242,6 +249,7 @@ class _Header extends StatelessWidget {
         const SizedBox(width: 10),
         const _LanguageButton(),
         const SizedBox(width: 10),
+        const _ProSettingsButton(),
         const _ProBadgeButton(),
         const SizedBox(width: 12),
         ConnectionStatusBadge(isConnected: isConnected),
@@ -404,6 +412,31 @@ class _LanguageButton extends StatelessWidget {
               const Icon(Icons.arrow_drop_down, size: 16, color: AppColors.textSecondary),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the Pro settings; shown only after the engine verified the license.
+class _ProSettingsButton extends StatelessWidget {
+  const _ProSettingsButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final engineIsPro = context.select<SocketService, bool>((s) => s.engineIsPro);
+    if (!engineIsPro) {
+      return const SizedBox.shrink();
+    }
+    final lang = context.watch<LanguageService>();
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Tooltip(
+        message: lang.isEnglish ? 'Pro settings' : 'Pro ayarları',
+        child: IconButton(
+          onPressed: () => ProSettingsDialog.show(context),
+          icon: const Icon(Icons.tune_rounded, size: 18, color: AppColors.warning),
+          visualDensity: VisualDensity.compact,
         ),
       ),
     );
