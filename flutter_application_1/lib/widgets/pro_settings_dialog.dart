@@ -180,9 +180,9 @@ class _NotificationsTabState extends State<_NotificationsTab> {
         children: [
           Text(
             en
-                ? 'Get an alert on your phone or inbox when EduTrace blocks an attack. '
+                ? 'Get an alert on your phone or inbox when EduTrace detects an attack. '
                     'At most one message per IP every 10 minutes and 20 per hour.'
-                : 'EduTrace bir saldırıyı engellediğinde telefonuna veya e-postana haber gelir. '
+                : 'EduTrace bir saldırı tespit ettiğinde telefonuna veya e-postana haber gelir. '
                     'Aynı IP için 10 dakikada en fazla bir, saatte en fazla 20 mesaj gönderilir.',
             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
