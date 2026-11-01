@@ -32,7 +32,7 @@ KAYNAKLAR = {
 }
 YENILEME_SN = 12 * 3600  # Spamhaus asks for no more than one download per hour
 INDIRME_ZAMAN_ASIMI = 15
-KULLANICI_AJANI = "EduTrace/1.1 (+https://github.com/TuncayKaynakkan/EduTrace)"
+KULLANICI_AJANI = "EduTrace/1.2 (+https://github.com/TuncayKaynakkan/EduTrace)"
 
 
 @dataclass(frozen=True)
