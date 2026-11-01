@@ -7,17 +7,17 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../models/active_app.dart';
 import '../models/threat_report.dart';
 import '../models/traffic_entry.dart';
-import 'network_discovery_service.dart';
-
 /// Manages Socket.IO communication with the EduTrace Python backend.
+///
+/// Only the engine on this machine (127.0.0.1) is used. The panel never scans
+/// the LAN: that looked like a port scan on company networks and would have
+/// handed the auth token to whichever host answered first.
 class SocketService extends ChangeNotifier {
-  SocketService({NetworkDiscoveryService? discoveryService})
-      : _discoveryService = discoveryService ?? NetworkDiscoveryService();
+  SocketService();
 
   /// Name of the scheduled task that runs the engine elevated and hidden.
   static const String engineTaskName = 'EduTraceEngine';
 
-  final NetworkDiscoveryService _discoveryService;
   io.Socket? _socket;
   bool _isConnecting = false;
   bool _disposed = false;
@@ -108,8 +108,6 @@ class SocketService extends ChangeNotifier {
       }
     }
 
-    // 3. Fallback to subnet discovery if still not found
-    backendUrl ??= await _discoveryService.discoverBackendUrl();
     _isConnecting = false;
 
     if (_disposed) {

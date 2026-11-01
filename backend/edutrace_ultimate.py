@@ -102,8 +102,9 @@ GEMINI_MAX_RETRIES = 3
 SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
 # Zararli bulunan sureci otomatik sonlandir (varsayilan: kapali, guvenlik icin)
-# Public IP'yi Windows Guvenlik Duvari'nda engelle (yonetici yetkisi gerekir)
-FIREWALL_BLOCK = os.getenv("FIREWALL_BLOCK", "true").lower() == "true"
+# Public IP'yi Windows Guvenlik Duvari'nda engelle (yonetici yetkisi gerekir).
+# Varsayilan kapali: yanlis bir alarm kullanicinin internetini kesmesin, once uyar.
+FIREWALL_BLOCK = os.getenv("FIREWALL_BLOCK", "false").lower() == "true"
 AUTO_TERMINATE = os.getenv("AUTO_TERMINATE", "false").lower() == "true"
 KORUNAN_SURECLER = {
     "system", "system idle process", "csrss.exe", "wininit.exe", "winlogon.exe",

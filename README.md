@@ -50,7 +50,8 @@ EduTrace yönetici yetkisiyle çalışıp firewall kuralı ekleyebildiği için 
 - Çevrimdışı tehdit istihbaratı: Spamhaus DROP (IPv4/IPv6) ve abuse.ch Feodo Tracker listeleri 12 saatte bir indirilir ve kontrol bilgisayarın içinde yapılır; bağlanılan IP adresleri hiçbir servise gönderilmez, API anahtarı gerekmez.
 - IPv4 ve IPv6 kapsamı: Trafik her iki protokolde de analiz edilir. Bilgisayarın tüm adresleri (geçici ve link-local IPv6 adresleri dahil) dakikada bir yenilenir; komşu keşfi (NDP) gibi ICMPv6 kontrol mesajları ping sayılmaz.
 - Durum takipli (stateful) analiz: Bilgisayarın başlattığı UDP/TCP akışlarının yanıtları (QUIC video, DNS, CDN) saldırı sayılmaz. Yanıt sayılmak için TCP paketinin ACK bayrağı taşıması gerekir; böylece tanıdık bir adresten gelen SYN/NULL/FIN/XMAS taramaları da yakalanır.
-- Güvenli firewall kullanımı: Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
+- Güvenli firewall kullanımı: Otomatik engelleme varsayılan olarak kapalıdır (`FIREWALL_BLOCK=false`); motor önce uyarır, kullanıcı isterse açar. Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
+- Yalnızca yerel bağlantı: Panel sadece aynı bilgisayardaki motora (`127.0.0.1`) bağlanır; yerel ağı taramaz ve token'ı başka bir cihaza göndermez.
 - Koda gömülü sır yok: API anahtarları `.env` dosyasından okunur; geliştirici lisans anahtarı yalnızca debug derlemesinde `--dart-define` ile verilir.
 
 ---
@@ -127,7 +128,7 @@ Sınırlar: Test tek bir bilgisayarda ve tek bir ağda yapıldı. Gerçek bir sa
 | [#11](https://github.com/TuncayKaynakkan/EduTrace/pull/11) | IPv6 trafiğin hiç analiz edilmemesi (canlı testte trafiğin %94'ü) | Görünürlük boşluğu |
 | [#13](https://github.com/TuncayKaynakkan/EduTrace/pull/13) | Bağlanılan IP'lerin VirusTotal'a gönderilmesi; ücretsiz API'nin ticari kullanım yasağı | Gizlilik / lisans uyumu |
 
-Bilinen sınırlar: Lisans kontrolü istemci tarafındadır. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Ağ üzerinden bağlanan panel (`SERVER_HOST=0.0.0.0`) token dosyasına erişemediği için bağlanamaz. Tehdit listeleri yalnızca bilinen kötü altyapıyı kapsar; listede olmayan bir saldırgan yalnızca davranış kurallarıyla yakalanır.
+Bilinen sınırlar: Lisans kontrolü istemci tarafındadır. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Panel başka bir bilgisayardaki motora bağlanamaz (uzaktan izleme desteklenmiyor). Tehdit listeleri yalnızca bilinen kötü altyapıyı kapsar; listede olmayan bir saldırgan yalnızca davranış kurallarıyla yakalanır.
 
 ---
 
