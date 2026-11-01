@@ -1,9 +1,10 @@
 """
 EduTrace XDR Backend — Autonomous network threat detection and education engine.
 
-Captures TCP traffic via Scapy, detects anomalies with IsolationForest,
-validates threats via VirusTotal, generates educational reports via Gemini AI,
-and streams events to the Flutter dashboard over Flask-SocketIO.
+Captures IPv4/IPv6 traffic via Scapy, detects anomalies with IsolationForest,
+checks IPs against offline blocklists (Spamhaus DROP, Feodo Tracker), generates
+educational reports via Gemini AI, and streams events to the Flutter dashboard
+over Flask-SocketIO.
 """
 
 from __future__ import annotations
@@ -25,7 +26,6 @@ from typing import Any
 import ipaddress
 import pandas as pd
 import psutil
-import requests
 from dotenv import load_dotenv
 from flask import Flask, request
 from flask_socketio import SocketIO
@@ -34,6 +34,7 @@ from scapy.all import IP, IPv6, TCP, UDP, ICMP, ICMPv6EchoRequest, sniff
 from sklearn.ensemble import IsolationForest
 
 import firewall
+from threat_intel import TehditListeleri
 from threat_rules import ThreatSignatureEngine, ThreatAlert
 
 imza_motoru = ThreatSignatureEngine(window_seconds=60)
@@ -267,7 +268,7 @@ class EgiticiAsistanMotoru:
         return False
 
     def tavsiye_uret(
-        self, uygulama_adi: str, hedef_ip: str, vt_skor: Any, saldiri_turu: str = "Supheli Ag Taramasi"
+        self, uygulama_adi: str, hedef_ip: str, istihbarat: str, saldiri_turu: str = "Supheli Ag Taramasi"
     ) -> str:
         """Create an educational report for a blocked threat in the active language."""
         if not self.client:
@@ -281,7 +282,7 @@ Our system just autonomously intercepted and neutralized the following security 
 Detected Threat / Attack Type: {saldiri_turu}
 Associated Application / Process: {uygulama_adi}
 Offending IP Address: {hedef_ip}
-VirusTotal Threat Score: {vt_skor}
+Threat Intelligence: {istihbarat}
 
 Please formulate an educational threat response report adhering strictly to this clear, technical format:
 1. [Attack Analysis]: What exactly is {saldiri_turu} and what is the threat actor trying to accomplish?
@@ -296,7 +297,7 @@ Sistemimiz az once su tehdidi otonom olarak engelledi:
 Tespit Edilen Saldiri Turu: {saldiri_turu}
 Iliskili Uygulama: {uygulama_adi}
 Tehlikeli IP Adresi: {hedef_ip}
-VirusTotal Skoru: {vt_skor}
+Tehdit Istihbarati: {istihbarat}
 
 Lutfen kullaniciya siber guvenlik egitimi vermek icin su net ve teknik formata uyarak yanit ver:
 1. [Saldirinin Analizi]: {saldiri_turu} tam olarak nedir ve saldirgan bu yontemle neyi hedefliyor?
@@ -349,64 +350,46 @@ Lutfen kullaniciya siber guvenlik egitimi vermek icin su net ve teknik formata u
 
 
 
-class TehditAnalizMotoru:
-    """Queries VirusTotal and returns an autonomous block/allow decision."""
+def _istihbarat_klasoru() -> str:
+    """Where the blocklists are cached.
 
-    def __init__(self) -> None:
-        self.vt_api_key = os.getenv("VIRUSTOTAL_API_KEY", "")
-        self.sorgu_gecmisi: dict[str, dict[str, Any]] = {}
-        if self.vt_api_key:
-          print("[+] VirusTotal istihbarat modulu aktif.")
-        else:
-          print("[!] VIRUSTOTAL_API_KEY tanimli degil. Dis IP analizi sinirli.")
+    The installed engine keeps them next to its exe (Program Files, admin-only
+    writes) so a standard user cannot plant entries; source runs use ProgramData.
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "intel")
+    return os.path.join(os.getenv("PROGRAMDATA") or os.path.expanduser("~"), "EduTrace", "intel")
 
-    def analiz_et_ve_karar_ver(self, ip_adresi: str) -> dict[str, Any]:
-        """Analyze an IP and decide whether to block it.
 
-        Args:
-          ip_adresi: Remote IP address to inspect.
+LISTE_KONTROL_ARALIGI = 3600
 
-        Returns:
-          Dictionary with keys ``ip``, ``vt_skor``, and ``otonom_karar``.
-        """
-        try:
-          ip_obj = ipaddress.ip_address(ip_adresi)
-          if ip_obj.is_private:
-            return {
-              "ip": ip_adresi,
-              "vt_skor": "YEREL AG (N/A)",
-              "otonom_karar": "ENGELLE",
-            }
-        except ValueError:
-          pass
 
-        if ip_adresi in self.sorgu_gecmisi:
-          cached = self.sorgu_gecmisi[ip_adresi].copy()
-          cached["ip"] = ip_adresi
-          return cached
+def istihbarat_sorgula(ip: str) -> dict[str, Any]:
+    """Look an IP up in the local blocklists; nothing is sent over the network."""
+    eslesmeler = tehdit_listeleri.kontrol_et(ip)
+    return {
+        "ip": ip,
+        "istihbarat_skoru": len(eslesmeler),
+        "kaynaklar": [f"{e.kaynak} ({e.detay})" for e in eslesmeler],
+    }
 
-        if not self.vt_api_key:
-          return {"ip": ip_adresi, "vt_skor": 0, "otonom_karar": "IZIN_VER"}
 
-        url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip_adresi}"
-        headers = {"accept": "application/json", "x-apikey": self.vt_api_key}
-        try:
-          response = requests.get(url, headers=headers, timeout=5)
-          if response.status_code == 200:
-            veri = response.json()
-            zararli_sayisi = veri["data"]["attributes"]["last_analysis_stats"]["malicious"]
-            otonom_karar = "ENGELLE" if zararli_sayisi > 0 else "IZIN_VER"
-            sonuc = {"vt_skor": zararli_sayisi, "otonom_karar": otonom_karar}
-            self.sorgu_gecmisi[ip_adresi] = sonuc
-            return {"ip": ip_adresi, **sonuc}
-        except requests.RequestException as exc:
-          print(f"[!] VirusTotal hatasi: {exc}")
+def istihbarat_ozeti(rapor: dict[str, Any]) -> str:
+    """One-line description of a lookup for logs and AI reports."""
+    if rapor.get("kaynaklar"):
+        return ", ".join(rapor["kaynaklar"])
+    return "Bilinen tehdit listelerinde yok"
 
-        return {"ip": ip_adresi, "vt_skor": 0, "otonom_karar": "IZIN_VER"}
+
+def tehdit_listesi_guncelleyici() -> None:
+    """Keep the blocklists fresh; each list is only downloaded when older than 12 hours."""
+    while True:
+        tehdit_listeleri.guncelle()
+        time.sleep(LISTE_KONTROL_ARALIGI)
 
 
 egitici_motor = EgiticiAsistanMotoru()
-tehdit_motoru = TehditAnalizMotoru()
+tehdit_listeleri = TehditListeleri(_istihbarat_klasoru())
 
 
 @socketio.on("karar_ver")
@@ -528,7 +511,7 @@ def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
             socketio.emit("temiz_trafik", {"ip": sim_ip, "paket": 1420})
             time.sleep(0.6)  # Realistic simulation delay
             egitici_rapor = egitici_motor.tavsiye_uret(
-                "nmap_recon.exe", sim_ip, "Simulasyon (1/72 VT Skoru)", saldiri_turu=saldiri_turu
+                "nmap_recon.exe", sim_ip, "Simulasyon (Spamhaus DROP eslesmesi)", saldiri_turu=saldiri_turu
             )
             socketio.emit(
                 "islem_sonucu",
@@ -686,13 +669,13 @@ def engelleme_karari(kaynak: str, istihbarat: dict[str, Any]) -> bool:
     """Whether an alert is acted on (firewall, process kill) or only reported.
 
     Rule and threshold alerts are based on observed attack behaviour. An ML
-    anomaly only says the traffic is unusual, so it needs threat intelligence
-    to confirm the IP before anything is blocked.
+    anomaly only says the traffic is unusual, so the IP has to be on a threat
+    intelligence blocklist before anything is blocked.
     """
     if kaynak in (KAYNAK_IMZA, KAYNAK_ESIK):
         return True
-    vt_skor = istihbarat.get("vt_skor")
-    return isinstance(vt_skor, int) and not isinstance(vt_skor, bool) and vt_skor > 0
+    skor = istihbarat.get("istihbarat_skoru")
+    return isinstance(skor, int) and not isinstance(skor, bool) and skor > 0
 
 
 def _tehdit_isle(
@@ -706,19 +689,19 @@ def _tehdit_isle(
     """Run threat intelligence, blocking, and educational reporting in background."""
     try:
         print(f"\n[!!!] TEHDIT YAKALANDI: {ip} -> {saldiri_turu} (kaynak: {kaynak})")
-        istihbarat_raporu = tehdit_motoru.analiz_et_ve_karar_ver(ip)
+        istihbarat_raporu = istihbarat_sorgula(ip)
 
         if not engelleme_karari(kaynak, istihbarat_raporu):
             print(
-                f"[~] {ip}: ML anomalisi VirusTotal ile dogrulanmadi "
-                f"(skor: {istihbarat_raporu.get('vt_skor')}); engellenmedi, izlenmeye devam ediliyor."
+                f"[~] {ip}: ML anomalisi tehdit listelerinde dogrulanmadi; "
+                "engellenmedi, izlenmeye devam ediliyor."
             )
             socketio.emit(
                 "islem_bildirimi",
                 {
                     "durum": "bilgi",
                     "mesaj": f"{ip} adresinde olagan disi trafik goruldu ({saldiri_turu}); "
-                    "VirusTotal dogrulamadigi icin engellenmedi, izleniyor.",
+                    "bilinen tehdit listelerinde olmadigi icin engellenmedi, izleniyor.",
                 },
             )
             return
@@ -750,7 +733,7 @@ def _tehdit_isle(
 
         print("[*] Egitici Asistan (Gemini) rapor hazirliyor...")
         egitici_rapor = egitici_motor.tavsiye_uret(
-            exe_adi, ip, istihbarat_raporu["vt_skor"], saldiri_turu=saldiri_turu
+            exe_adi, ip, istihbarat_ozeti(istihbarat_raporu), saldiri_turu=saldiri_turu
         )
         socketio.emit(
             "islem_sonucu",
@@ -894,6 +877,7 @@ if __name__ == "__main__":
 
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()
     threading.Thread(target=canli_gorev_yoneticisi, daemon=True).start()
+    threading.Thread(target=tehdit_listesi_guncelleyici, daemon=True).start()
     print(f"[*] Radyo Kulesi Yayin Yapiyor -> IP: {SERVER_HOST} Port: {SERVER_PORT}")
     socketio.run(
         app,

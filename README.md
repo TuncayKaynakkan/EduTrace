@@ -46,7 +46,8 @@ Proje iki ana bileşenden oluşmaktadır:
 EduTrace yönetici yetkisiyle çalışıp firewall kuralı ekleyebildiği için motorun kendisi de bir saldırı yüzeyidir. Bu yüzden şu kurallara göre tasarlanmıştır:
 
 - Kimlik doğrulamalı yerel API: Motor her açılışta rastgele bir token üretir ve `%PROGRAMDATA%\EduTrace\auth.token` dosyasına yazar. Dosyayı yalnızca çalıştıran kullanıcı, Administrators ve SYSTEM okuyabilir. Token'ı göndermeyen istemciler reddedilir; token oluşturulamazsa herkes reddedilir (fail closed).
-- Kanıtın gücüne göre müdahale: İmza kuralı (SYN flood, XMAS tarama vb.) ve hacim eşiği alarmları doğrudan engellenir. Makine öğrenmesi anomalileri ise yalnızca VirusTotal tarafından doğrulanırsa engellenir; aksi halde kullanıcıya bildirilir ve izlenir.
+- Kanıtın gücüne göre müdahale: İmza kuralı (SYN flood, XMAS tarama vb.) ve hacim eşiği alarmları doğrudan engellenir. Makine öğrenmesi anomalileri ise yalnızca IP bir tehdit listesinde yer alıyorsa engellenir; aksi halde kullanıcıya bildirilir ve izlenir.
+- Çevrimdışı tehdit istihbaratı: Spamhaus DROP (IPv4/IPv6) ve abuse.ch Feodo Tracker listeleri 12 saatte bir indirilir ve kontrol bilgisayarın içinde yapılır; bağlanılan IP adresleri hiçbir servise gönderilmez, API anahtarı gerekmez.
 - IPv4 ve IPv6 kapsamı: Trafik her iki protokolde de analiz edilir. Bilgisayarın tüm adresleri (geçici ve link-local IPv6 adresleri dahil) dakikada bir yenilenir; komşu keşfi (NDP) gibi ICMPv6 kontrol mesajları ping sayılmaz.
 - Durum takipli (stateful) analiz: Bilgisayarın başlattığı UDP/TCP akışlarının yanıtları (QUIC video, DNS, CDN) saldırı sayılmaz. Yanıt sayılmak için TCP paketinin ACK bayrağı taşıması gerekir; böylece tanıdık bir adresten gelen SYN/NULL/FIN/XMAS taramaları da yakalanır.
 - Güvenli firewall kullanımı: Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
@@ -124,5 +125,13 @@ Sınırlar: Test tek bir bilgisayarda ve tek bir ağda yapıldı. Gerçek bir sa
 | [#8](https://github.com/TuncayKaynakkan/EduTrace/pull/8) | CDN yanıtlarının yavaş port taraması sayılması | Yanlış alarm |
 | [#9](https://github.com/TuncayKaynakkan/EduTrace/pull/9) | ML anomalilerinin VirusTotal doğrulaması olmadan engellenmesi | Hatalı otomatik müdahale |
 | [#11](https://github.com/TuncayKaynakkan/EduTrace/pull/11) | IPv6 trafiğin hiç analiz edilmemesi (canlı testte trafiğin %94'ü) | Görünürlük boşluğu |
+| [#13](https://github.com/TuncayKaynakkan/EduTrace/pull/13) | Bağlanılan IP'lerin VirusTotal'a gönderilmesi; ücretsiz API'nin ticari kullanım yasağı | Gizlilik / lisans uyumu |
 
-Bilinen sınırlar: Lisans kontrolü istemci tarafındadır. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Ağ üzerinden bağlanan panel (`SERVER_HOST=0.0.0.0`) token dosyasına erişemediği için bağlanamaz.
+Bilinen sınırlar: Lisans kontrolü istemci tarafındadır. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Ağ üzerinden bağlanan panel (`SERVER_HOST=0.0.0.0`) token dosyasına erişemediği için bağlanamaz. Tehdit listeleri yalnızca bilinen kötü altyapıyı kapsar; listede olmayan bir saldırgan yalnızca davranış kurallarıyla yakalanır.
+
+---
+
+📚 Veri Kaynakları ve Teşekkür
+
+- [Spamhaus DROP](https://www.spamhaus.org/blocklists/do-not-route-or-peer/) listeleri © The Spamhaus Project SLU; [kullanım şartları](https://www.spamhaus.org/drop/terms/). Dosyalar değiştirilmeden saklanır, tarih ve telif bilgisi korunur.
+- [abuse.ch Feodo Tracker](https://feodotracker.abuse.ch/) verileri CC0 kapsamında; [kullanım şartları](https://abuse.ch/terms-of-use/).
