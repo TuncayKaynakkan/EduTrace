@@ -28,8 +28,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescription: "Ek görevler:"
 
 [Dirs]
-; No extra rights for Users: the elevated engine reads .env from here, so a
-; standard user must not be able to change it (see the icacls lines in [Run]).
+; No extra rights for Users: the elevated engine reads its settings and state from
+; here, so a standard user must not be able to write (see the icacls lines in [Run]).
 Name: "{commonappdata}\EduTrace"
 
 [Files]
@@ -45,8 +45,15 @@ Name: "{group}\{#AppName} Kaldir"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\EduTrace"; Filename: "{app}\app\EduTrace.exe"; Tasks: desktopicon
 
 [Run]
-; 1.0.0 gave Users "modify" on the data folder; drop that explicit grant on upgrade.
-Filename: "icacls"; Parameters: """{commonappdata}\EduTrace"" /remove:g *S-1-5-32-545"; Flags: runhidden
+; ProgramData lets every user create files in new folders (inherited WD/AD), and
+; 1.0.0 even granted Users "modify". The elevated engine trusts files here (block
+; list, license cache, history), so a standard user who plants one first could hide
+; an IP from detection. Make Administrators the owner of everything (an owner can
+; rewrite the ACL), allow writes only for Administrators and SYSTEM, give Users read,
+; then reset the existing files so they inherit that.
+Filename: "icacls"; Parameters: """{commonappdata}\EduTrace"" /setowner *S-1-5-32-544 /T /C"; Flags: runhidden
+Filename: "icacls"; Parameters: """{commonappdata}\EduTrace"" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX"; Flags: runhidden
+Filename: "icacls"; Parameters: """{commonappdata}\EduTrace\*"" /reset /T /C"; Flags: runhidden
 ; .env: Administrators and SYSTEM full control, Users read-only (S-1-5-32-545 = Users).
 Filename: "icacls"; Parameters: """{commonappdata}\EduTrace\.env"" /inheritance:r /grant:r *S-1-5-32-544:F *S-1-5-18:F *S-1-5-32-545:R"; Flags: runhidden
 Filename: "schtasks"; Parameters: "/Create /TN ""EduTraceEngine"" /TR """"{app}\engine\EduTraceEngine.exe"""" /SC ONLOGON /RL HIGHEST /F"; Flags: runhidden
