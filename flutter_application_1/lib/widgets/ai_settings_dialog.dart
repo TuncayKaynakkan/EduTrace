@@ -234,6 +234,17 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 ),
               ],
 
+              const SizedBox(height: 12),
+              // Privacy: what leaves the computer once a key is set (see PRIVACY.md)
+              Text(
+                lang.isEnglish
+                    ? 'With a key, each alert sends the attack type, attacker IP and process name to Google. '
+                        'On the free tier Google may use this to improve its products and humans may read it.'
+                    : 'Anahtar girerseniz her alarmda saldırı türü, saldırgan IP ve program adı Google\'a gönderilir. '
+                        'Ücretsiz kullanımda Google bunları ürünlerini geliştirmek için kullanabilir ve insanlar okuyabilir.',
+                style: const TextStyle(fontSize: 11, color: AppColors.warning),
+              ),
+
               const SizedBox(height: 14),
 
               // Link to get free Google AI Studio Key

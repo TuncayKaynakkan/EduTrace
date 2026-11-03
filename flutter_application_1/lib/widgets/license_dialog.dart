@@ -13,6 +13,9 @@ class LicenseDialog extends StatefulWidget {
   static const String storeCheckoutUrl =
       'https://edutrace.lemonsqueezy.com/checkout/buy/ade0fc83-f990-4985-a675-b69ca8a67109';
 
+  /// Privacy notice (KVKK): what leaves the computer and why
+  static const String privacyUrl = 'https://github.com/TuncayKaynakkan/EduTrace/blob/main/PRIVACY.md';
+
   const LicenseDialog({super.key});
 
   /// Displays the license modal.
@@ -45,10 +48,12 @@ class _LicenseDialogState extends State<LicenseDialog> {
     super.dispose();
   }
 
-  void _openStore() {
+  void _openStore() => _openUrl(LicenseDialog.storeCheckoutUrl);
+
+  void _openUrl(String url) {
     try {
       if (Platform.isWindows) {
-        Process.run('cmd', ['/c', 'start', LicenseDialog.storeCheckoutUrl]);
+        Process.run('cmd', ['/c', 'start', url]);
       }
     } catch (e) {
       debugPrint('Browser open error: $e');
@@ -244,6 +249,18 @@ class _LicenseDialogState extends State<LicenseDialog> {
                           ? 'Live detection, attack signatures, threat lists and AI lessons are free for everyone.'
                           : 'Canlı tespit, saldırı imzaları, tehdit listeleri ve AI eğitim raporu herkes için ücretsiz.',
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: () => _openUrl(LicenseDialog.privacyUrl),
+                      child: Text(
+                        lang.isEnglish ? 'Privacy notice' : 'Gizlilik ve aydınlatma metni (KVKK)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.accent,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                   ],
                 ),
