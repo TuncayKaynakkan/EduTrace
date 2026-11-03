@@ -137,7 +137,11 @@ def token_dosyasi_yolu() -> str:
 
 
 def yetki_tokeni_olustur() -> str:
-    """Create a fresh token and store it where only this user, admins and SYSTEM can read it."""
+    """Create a fresh token and store it where only this user, admins and SYSTEM can read it.
+
+    Returns "" when the file cannot be written: the panel could never learn the
+    token, so the engine should not run (see ``__main__``).
+    """
     token = secrets.token_urlsafe(32)
     yol = token_dosyasi_yolu()
     try:
@@ -149,7 +153,7 @@ def yetki_tokeni_olustur() -> str:
         os.close(os.open(yol, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
         # Lock the empty file down before the secret is written into it
         if sys.platform == "win32":
-            # %PROGRAMDATA%\EduTrace is writable by all users, so drop inherited rights
+            # Every user may read %PROGRAMDATA%\EduTrace, so drop inherited rights
             kullanici = os.getenv("USERNAME", "")
             sonuc = subprocess.run(
                 ["icacls", yol, "/inheritance:r", "/grant:r",
@@ -162,6 +166,7 @@ def yetki_tokeni_olustur() -> str:
             f.write(token)
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"[!] Yetki tokeni yazilamadi, panel baglanamayacak: {exc}")
+        return ""
     return token
 
 
@@ -1010,6 +1015,11 @@ if __name__ == "__main__":
     print(f"[*] Sistem IP Adresi: {AKTIF_IP}")
     print("-" * 75)
     AUTH_TOKEN = yetki_tokeni_olustur()
+    if not AUTH_TOKEN:
+        # Typically an unelevated copy: exit and release the single-instance lock
+        # so the elevated engine (scheduled task) can start instead.
+        print("[!] Motor yonetici olarak calismali; bu kopya kapaniyor.")
+        sys.exit(1)
     print(f"[+] Panel yetki tokeni olusturuldu: {token_dosyasi_yolu()}")
 
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()

@@ -56,7 +56,9 @@ Filename: "icacls"; Parameters: """{commonappdata}\EduTrace"" /inheritance:r /gr
 Filename: "icacls"; Parameters: """{commonappdata}\EduTrace\*"" /reset /T /C"; Flags: runhidden
 ; .env: Administrators and SYSTEM full control, Users read-only (S-1-5-32-545 = Users).
 Filename: "icacls"; Parameters: """{commonappdata}\EduTrace\.env"" /inheritance:r /grant:r *S-1-5-32-544:F *S-1-5-18:F *S-1-5-32-545:R"; Flags: runhidden
-Filename: "schtasks"; Parameters: "/Create /TN ""EduTraceEngine"" /TR """"{app}\engine\EduTraceEngine.exe"""" /SC ONLOGON /RL HIGHEST /F"; Flags: runhidden
+; /TR needs the path quoted for schtasks itself ("\"...\""); the previous ""..."" form
+; split at the space in "Program Files", so the task was never created.
+Filename: "schtasks"; Parameters: "/Create /TN ""EduTraceEngine"" /TR ""\""{app}\engine\EduTraceEngine.exe\"""" /SC ONLOGON /RL HIGHEST /F"; Flags: runhidden
 Filename: "https://npcap.com/#download"; Description: "Npcap indir (paket yakalama surucusu)"; Flags: postinstall shellexec skipifsilent; Check: not IsNpcapInstalled
 Filename: "{app}\engine\EduTraceEngine.exe"; Description: "EduTrace motorunu baslat"; Flags: postinstall nowait skipifsilent runascurrentuser
 Filename: "{app}\app\EduTrace.exe"; Description: "EduTrace panelini ac"; Flags: postinstall nowait skipifsilent
