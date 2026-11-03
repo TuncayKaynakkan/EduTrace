@@ -146,7 +146,13 @@ Sınırlar: Test tek bir bilgisayarda ve tek bir ağda yapıldı. Gerçek bir sa
 | [#11](https://github.com/TuncayKaynakkan/EduTrace/pull/11) | IPv6 trafiğin hiç analiz edilmemesi (canlı testte trafiğin %94'ü) | Görünürlük boşluğu |
 | [#13](https://github.com/TuncayKaynakkan/EduTrace/pull/13) | Bağlanılan IP'lerin VirusTotal'a gönderilmesi; ücretsiz API'nin ticari kullanım yasağı | Gizlilik / lisans uyumu |
 
-Bilinen sınırlar: Lisans kontrolü istemci tarafındadır. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Panel başka bir bilgisayardaki motora bağlanamaz (uzaktan izleme desteklenmiyor). Tehdit listeleri yalnızca bilinen kötü altyapıyı kapsar; listede olmayan bir saldırgan yalnızca davranış kurallarıyla yakalanır.
+Bilinen sınırlar: Lisansı panel değil motor doğrular; Pro eklentisi derlenmiş halde dağıtılır ve kararlı biri tersine mühendislikle kontrolü aşabilir. Motor açılmadan önce kurulmuş bağlantıların yanıtları ilk 60 saniyede sayılabilir. Panel başka bir bilgisayardaki motora bağlanamaz (uzaktan izleme desteklenmiyor). Tehdit listeleri yalnızca bilinen kötü altyapıyı kapsar; listede olmayan bir saldırgan yalnızca davranış kurallarıyla yakalanır.
+
+---
+
+🔏 Gizlilik
+
+Trafik analizi bilgisayarın içinde yapılır; EduTrace'te telemetri yoktur. Veri yalnızca tehdit listelerini indirirken, kendi Gemini anahtarınızı eklediyseniz, Pro lisansı doğrulanırken ve Pro bildirimlerini açtıysanız dışarı çıkar. Ayrıntılar ve KVKK aydınlatma metni: [PRIVACY.md](PRIVACY.md).
 
 ---
 
