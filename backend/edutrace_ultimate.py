@@ -137,7 +137,11 @@ def token_dosyasi_yolu() -> str:
 
 
 def yetki_tokeni_olustur() -> str:
-    """Create a fresh token and store it where only this user, admins and SYSTEM can read it."""
+    """Create a fresh token and store it where only this user, admins and SYSTEM can read it.
+
+    Returns "" when the file cannot be written: the panel could never learn the
+    token, so the engine should not run (see ``__main__``).
+    """
     token = secrets.token_urlsafe(32)
     yol = token_dosyasi_yolu()
     try:
@@ -149,7 +153,7 @@ def yetki_tokeni_olustur() -> str:
         os.close(os.open(yol, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
         # Lock the empty file down before the secret is written into it
         if sys.platform == "win32":
-            # %PROGRAMDATA%\EduTrace is writable by all users, so drop inherited rights
+            # Every user may read %PROGRAMDATA%\EduTrace, so drop inherited rights
             kullanici = os.getenv("USERNAME", "")
             sonuc = subprocess.run(
                 ["icacls", yol, "/inheritance:r", "/grant:r",
@@ -162,6 +166,7 @@ def yetki_tokeni_olustur() -> str:
             f.write(token)
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"[!] Yetki tokeni yazilamadi, panel baglanamayacak: {exc}")
+        return ""
     return token
 
 
@@ -965,13 +970,56 @@ def pro_eklentisini_yukle() -> ProKancalari:
 
 pro = pro_eklentisini_yukle()
 
+TEK_ORNEK_ADI = "EduTraceEngine"
+_tek_ornek_tutamaci: Any = None
+
+
+def tek_ornek_kilidi_al(ad: str = TEK_ORNEK_ADI) -> bool:
+    """Whether this is the only engine running.
+
+    A second engine would overwrite auth.token with a token the engine that
+    owns port 5000 does not know, and the panel could never connect. That
+    happens when the installer and the panel both start the engine at once.
+    """
+    global _tek_ornek_tutamaci
+    if sys.platform != "win32":
+        return True
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    tutamac = kernel32.CreateMutexW(None, False, f"Global\\{ad}")
+    hata = ctypes.get_last_error()
+    # 183: another engine created it. 5: an elevated engine owns it and this
+    # unelevated one may not open it, which also means one is already running.
+    if hata in (183, 5):
+        if tutamac:
+            kernel32.CloseHandle(tutamac)
+        return False
+    if not tutamac:
+        # Cannot create a lock at all: running unguarded beats not running
+        print(f"[!] Tek kopya kilidi olusturulamadi (hata {hata}); devam ediliyor.")
+        return True
+    _tek_ornek_tutamaci = tutamac
+    return True
+
 
 if __name__ == "__main__":
-    print("EduTrace v1.1.0 [XDR ve AI Egitmen] Baslatiliyor...")
+    if not tek_ornek_kilidi_al():
+        print("[*] EduTrace motoru zaten calisiyor; bu kopya kapaniyor.")
+        sys.exit(0)
+    print("EduTrace v1.2.0 [XDR ve AI Egitmen] Baslatiliyor...")
     print("-" * 75)
     print(f"[*] Sistem IP Adresi: {AKTIF_IP}")
     print("-" * 75)
     AUTH_TOKEN = yetki_tokeni_olustur()
+    if not AUTH_TOKEN:
+        # Typically an unelevated copy: exit and release the single-instance lock
+        # so the elevated engine (scheduled task) can start instead.
+        print("[!] Motor yonetici olarak calismali; bu kopya kapaniyor.")
+        sys.exit(1)
     print(f"[+] Panel yetki tokeni olusturuldu: {token_dosyasi_yolu()}")
 
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()

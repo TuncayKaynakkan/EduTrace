@@ -97,7 +97,16 @@ class SocketService extends ChangeNotifier {
     // 1. Check if backend is already listening locally
     var backendUrl = await _checkLocalBackend();
 
-    // 2. If not running locally, start the engine immediately!
+    // 2. The installer and Windows logon start the engine together with the
+    // panel; give it a moment before starting a second copy (or a UAC prompt).
+    if (backendUrl == null && !_engineStartAttempted) {
+      for (var i = 0; i < 12 && backendUrl == null && !_disposed; i++) {
+        await Future.delayed(const Duration(milliseconds: 250));
+        backendUrl = await _checkLocalBackend();
+      }
+    }
+
+    // 3. Still not running: start the engine
     if (backendUrl == null && Platform.isWindows) {
       await _tryStartEngine();
       // Poll every 250ms for up to 4 seconds for backend to be ready
@@ -134,9 +143,27 @@ class SocketService extends ChangeNotifier {
 
     try {
       final appDir = File(Platform.resolvedExecutable).parent;
+
+      // Installed layout: <appDir>\..\engine\EduTraceEngine.exe. The engine must
+      // run elevated (packet capture, firewall, and only admins may write
+      // %PROGRAMDATA%\EduTrace). Starting the exe directly gives an unelevated
+      // engine that cannot write auth.token yet takes the single-instance lock,
+      // so the panel could never connect. The scheduled task starts it elevated
+      // without a prompt; if the task is missing, ask for elevation once.
+      final installedExe = File('${appDir.parent.path}\\engine\\EduTraceEngine.exe');
+      if (installedExe.existsSync()) {
+        final task = await Process.run('schtasks', ['/run', '/tn', engineTaskName]);
+        if (task.exitCode != 0) {
+          await Process.run('powershell', [
+            '-NoProfile',
+            '-Command',
+            "Start-Process -FilePath '${installedExe.path}' -WorkingDirectory '${installedExe.parent.path}' -Verb RunAs",
+          ]);
+        }
+        return;
+      }
+
       final candidates = [
-        // Installed layout: <appDir>\..\engine\EduTraceEngine.exe
-        File('${appDir.parent.path}\\engine\\EduTraceEngine.exe'),
         // Dev build layout: <project>\installer\build\EduTraceEngine\EduTraceEngine.exe
         File('${appDir.parent.parent.parent.parent.path}\\installer\\build\\EduTraceEngine\\EduTraceEngine.exe'),
         // Same folder:
