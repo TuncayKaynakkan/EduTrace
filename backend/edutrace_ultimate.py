@@ -37,6 +37,7 @@ from sklearn.ensemble import IsolationForest
 
 import firewall
 from ayarlar import GizliAyarlar
+from gizli import GizliHata, coz, sifrele
 from olay_gecmisi import OlayGecmisi
 from pro_kancalari import ProKancalari
 from threat_intel import TehditListeleri
@@ -48,36 +49,23 @@ warnings.filterwarnings("ignore")
 
 
 def _env_yukle() -> None:
-    """Load .env and settings.json from %APPDATA%\\EduTrace or %PROGRAMDATA%\\EduTrace."""
+    """Load .env from next to the engine exe or %PROGRAMDATA%\\EduTrace.
+
+    The Gemini key the user enters in the panel is not read from here; it is
+    kept DPAPI-encrypted in gizli.json (see gemini_anahtarini_hazirla).
+    """
     adaylar = []
     if getattr(sys, "frozen", False):
         adaylar.append(os.path.join(os.path.dirname(sys.executable), ".env"))
     programdata = os.getenv("PROGRAMDATA")
     if programdata:
         adaylar.append(os.path.join(programdata, "EduTrace", ".env"))
-    appdata = os.getenv("APPDATA") or os.getenv("LOCALAPPDATA")
-    if appdata:
-        adaylar.append(os.path.join(appdata, "EduTrace", ".env"))
     for yol in adaylar:
         if os.path.isfile(yol):
             load_dotenv(yol)
             break
     else:
         load_dotenv()
-
-    # Also check %APPDATA%\EduTrace\settings.json for user-configured gemini_api_key
-    if appdata:
-        settings_file = os.path.join(appdata, "EduTrace", "settings.json")
-        if os.path.isfile(settings_file):
-            try:
-                import json
-                with open(settings_file, "r", encoding="utf-8") as sf:
-                    sdata = json.load(sf)
-                    gkey = sdata.get("gemini_api_key")
-                    if gkey and not os.getenv("GEMINI_API_KEY"):
-                        os.environ["GEMINI_API_KEY"] = str(gkey).strip()
-            except Exception:
-                pass
 
 
 _env_yukle()
@@ -178,6 +166,7 @@ def istemci_baglandi(auth: Any = None) -> None:
         print(f"[!] Yetkisiz Socket.IO baglantisi reddedildi ({request.remote_addr})")
         raise ConnectionRefusedError("yetkisiz")
     _yetkili_istemciler.add(request.sid)
+    socketio.emit("ai_durumu", ai_durumu(), to=request.sid)
 
 
 @socketio.on("disconnect")
@@ -398,6 +387,74 @@ def tehdit_listesi_guncelleyici() -> None:
 
 
 egitici_motor = EgiticiAsistanMotoru()
+# Secrets entered in the panel, DPAPI-encrypted, file readable only by admins/SYSTEM
+gizli_ayarlar = GizliAyarlar(
+    os.path.join(os.getenv("PROGRAMDATA") or os.path.expanduser("~"), "EduTrace", "gizli.json")
+)
+
+
+def eski_gemini_anahtarlarini_tasi() -> None:
+    """Move the plaintext Gemini key older versions left in %APPDATA%\\EduTrace.
+
+    1.1 and earlier wrote it to settings.json and appended a GEMINI_API_KEY line
+    to .env on every change. The key moves into gizli.json and both copies go.
+    """
+    import json
+
+    appdata = os.getenv("APPDATA")
+    if not appdata:
+        return
+    klasor = os.path.join(appdata, "EduTrace")
+    ayar_yolu = os.path.join(klasor, "settings.json")
+    try:
+        with open(ayar_yolu, encoding="utf-8") as f:
+            ayarlar = json.load(f)
+    except (OSError, ValueError):
+        ayarlar = None
+    if isinstance(ayarlar, dict) and "gemini_api_key" in ayarlar:
+        eski = str(ayarlar.pop("gemini_api_key") or "").strip()
+        try:
+            if eski and not gizli_ayarlar.al("gemini_api_key"):
+                gizli_ayarlar.guncelle({"gemini_api_key": sifrele(eski)})
+            with open(ayar_yolu, "w", encoding="utf-8") as f:
+                json.dump(ayarlar, f)
+            print("[+] Eski duz metin Gemini anahtari sifreli depoya tasindi.")
+        except (OSError, GizliHata) as exc:
+            print(f"[!] Eski Gemini anahtari tasinamadi: {exc}")
+            return
+
+    env_yolu = os.path.join(klasor, ".env")
+    try:
+        with open(env_yolu, encoding="utf-8") as f:
+            satirlar = f.readlines()
+    except OSError:
+        return
+    kalan = [s for s in satirlar if not s.strip().startswith("GEMINI_API_KEY")]
+    if len(kalan) != len(satirlar):
+        try:
+            if any(s.strip() for s in kalan):
+                with open(env_yolu, "w", encoding="utf-8") as f:
+                    f.writelines(kalan)
+            else:
+                os.remove(env_yolu)
+        except OSError as exc:
+            print(f"[!] Eski .env temizlenemedi: {exc}")
+
+
+def gemini_anahtarini_hazirla() -> None:
+    """Use the key saved from the panel; GEMINI_API_KEY in .env is the fallback."""
+    eski_gemini_anahtarlarini_tasi()
+    try:
+        anahtar = coz(gizli_ayarlar.al("gemini_api_key", ""))
+    except GizliHata as exc:
+        print(f"[!] Kayitli Gemini anahtari cozulemedi: {exc}")
+        return
+    if anahtar:
+        egitici_motor.guncelle_api_key(anahtar)
+
+
+def ai_durumu() -> dict[str, Any]:
+    return {"anahtar_var": egitici_motor.client is not None}
 tehdit_listeleri = TehditListeleri(_istihbarat_klasoru())
 
 
@@ -626,33 +683,16 @@ def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
 @socketio.on("gemini_key_guncelle")
 @yetkili
 def gemini_key_guncelle_al(data: dict[str, Any]) -> None:
-    """Updates the Gemini API key in memory and persists to settings."""
-    yeni_key = str(data.get("api_key", "")).strip()
+    """Update the Gemini key in memory and store it DPAPI-encrypted; "" removes it."""
+    yeni_key = str(data.get("api_key", "") if isinstance(data, dict) else "").strip()
+    try:
+        gizli_ayarlar.guncelle({"gemini_api_key": sifrele(yeni_key) or None})
+    except (OSError, GizliHata) as exc:
+        print(f"[!] API anahtari kaydedilemedi: {exc}")
+        socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"API anahtari kaydedilemedi: {exc}"})
+        return
     basarili = egitici_motor.guncelle_api_key(yeni_key)
-
-    appdata = os.getenv("APPDATA") or os.getenv("LOCALAPPDATA")
-    if appdata:
-        try:
-            import json
-            edutrace_dir = os.path.join(appdata, "EduTrace")
-            os.makedirs(edutrace_dir, exist_ok=True)
-            settings_path = os.path.join(edutrace_dir, "settings.json")
-            sdata = {}
-            if os.path.isfile(settings_path):
-                try:
-                    with open(settings_path, "r", encoding="utf-8") as f:
-                        sdata = json.load(f)
-                except Exception:
-                    pass
-            sdata["gemini_api_key"] = yeni_key
-            with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump(sdata, f, indent=2)
-
-            env_path = os.path.join(edutrace_dir, ".env")
-            with open(env_path, "a", encoding="utf-8") as f:
-                f.write(f"\nGEMINI_API_KEY={yeni_key}\n")
-        except Exception as exc:
-            print(f"[!] API anahtari dosyaya yazilamadi: {exc}")
+    socketio.emit("ai_durumu", ai_durumu())
 
     if basarili:
         msg = "Google Gemini API anahtarı başarıyla bağlandı!" if CURRENT_LANG == "tr" else "Google Gemini API key connected successfully!"
@@ -1021,6 +1061,7 @@ if __name__ == "__main__":
         print("[!] Motor yonetici olarak calismali; bu kopya kapaniyor.")
         sys.exit(1)
     print(f"[+] Panel yetki tokeni olusturuldu: {token_dosyasi_yolu()}")
+    gemini_anahtarini_hazirla()
 
     threading.Thread(target=edutrace_sentinel_motoru, daemon=True).start()
     threading.Thread(target=canli_gorev_yoneticisi, daemon=True).start()

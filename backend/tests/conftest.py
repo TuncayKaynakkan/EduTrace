@@ -15,6 +15,8 @@ def _gecici_veri(monkeypatch, tmp_path):
 
     monkeypatch.setattr(et, "olay_gecmisi", OlayGecmisi(":memory:"))
     monkeypatch.setattr(et, "engel_kayitlari", et.GizliAyarlar(str(tmp_path / "engellenenler.json")))
+    monkeypatch.setattr(et, "gizli_ayarlar", et.GizliAyarlar(str(tmp_path / "gizli.json")))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     # Core tests run the free edition unless a test installs a fake Pro add-on
     monkeypatch.setattr(et, "pro", et.ProKancalari(et.socketio))
     yield

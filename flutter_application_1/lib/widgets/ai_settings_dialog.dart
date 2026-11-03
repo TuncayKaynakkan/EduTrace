@@ -33,8 +33,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   @override
   void initState() {
     super.initState();
-    final langService = context.read<LanguageService>();
-    _controller = TextEditingController(text: langService.geminiApiKey ?? '');
+    // The saved key never comes back from the engine; leave the field empty
+    _controller = TextEditingController();
   }
 
   @override
@@ -53,13 +53,20 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     }
   }
 
-  void _handleSave() {
+  void _handleSave({bool remove = false}) {
     final langService = context.read<LanguageService>();
     final socketService = context.read<SocketService>();
-    final key = _controller.text.trim();
+    final key = remove ? '' : _controller.text.trim();
+    if (key.isEmpty && !remove) {
+      setState(() {
+        _isSuccess = false;
+        _statusMessage = langService.isEnglish ? 'Enter a key first.' : 'Önce bir anahtar girin.';
+      });
+      return;
+    }
 
-    langService.setGeminiApiKey(key.isEmpty ? null : key);
     socketService.updateGeminiApiKey(key);
+    _controller.clear();
 
     setState(() {
       _isSuccess = true;
@@ -76,7 +83,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final lang = context.watch<LanguageService>();
-    final hasKey = lang.hasCustomGeminiKey;
+    final hasKey = context.watch<SocketService>().aiKeySet;
 
     return Dialog(
       backgroundColor: AppColors.surface,
@@ -184,7 +191,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 decoration: InputDecoration(
                   labelText: lang.isEnglish ? 'Gemini API Key' : 'Gemini API Anahtarı',
                   labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  hintText: 'AIzaSy...',
+                  hintText: hasKey
+                      ? (lang.isEnglish
+                          ? 'Saved encrypted. Enter a new key to replace it.'
+                          : 'Şifreli kayıtlı. Değiştirmek için yeni anahtar girin.')
+                      : 'AIzaSy...',
                   hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                   filled: true,
                   fillColor: AppColors.background,
@@ -258,10 +269,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 children: [
                   if (hasKey)
                     TextButton(
-                      onPressed: () {
-                        _controller.clear();
-                        _handleSave();
-                      },
+                      onPressed: () => _handleSave(remove: true),
                       child: Text(
                         lang.isEnglish ? 'Clear Key' : 'Anahtarı Kaldır',
                         style: const TextStyle(color: AppColors.danger, fontSize: 12),

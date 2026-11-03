@@ -16,13 +16,10 @@ enum AppLanguage {
 class LanguageService extends ChangeNotifier {
   AppLanguage _currentLanguage = AppLanguage.tr;
   bool _isFirstLaunch = false;
-  String? _geminiApiKey;
 
   AppLanguage get currentLanguage => _currentLanguage;
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isEnglish => _currentLanguage == AppLanguage.en;
-  String? get geminiApiKey => _geminiApiKey;
-  bool get hasCustomGeminiKey => _geminiApiKey != null && _geminiApiKey!.trim().isNotEmpty;
 
   LanguageService() {
     _loadLanguage();
@@ -66,7 +63,6 @@ class LanguageService extends ChangeNotifier {
       } else {
         _isFirstLaunch = true;
       }
-      _geminiApiKey = data['gemini_api_key'] as String?;
       notifyListeners();
     } catch (e) {
       debugPrint('[LanguageService] Error loading settings: $e');
@@ -92,25 +88,6 @@ class LanguageService extends ChangeNotifier {
       debugPrint('[LanguageService] Error saving language: $e');
     }
 
-    notifyListeners();
-  }
-
-  void setGeminiApiKey(String? key) {
-    _geminiApiKey = key?.trim();
-    try {
-      final file = _getSettingsFile();
-      Map<String, dynamic> data = {};
-      if (file.existsSync()) {
-        try {
-          data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-        } catch (_) {}
-      }
-      data['gemini_api_key'] = _geminiApiKey;
-      data['updated_at'] = DateTime.now().toIso8601String();
-      file.writeAsStringSync(jsonEncode(data), flush: true);
-    } catch (e) {
-      debugPrint('[LanguageService] Error saving Gemini key: $e');
-    }
     notifyListeners();
   }
 
