@@ -49,7 +49,7 @@ Google, Lemon Squeezy ve Telegram'ın sunucuları Türkiye dışında olabilir. 
 
 Veri sorumlusu EduTrace geliştiricisi Tuncay Kaynakkan'dır. Bilgisayarınızda tutulan verileri ilgili dosyaları silerek istediğiniz zaman silebilirsiniz. EduTrace'i kaldırmak programı siler ama `%PROGRAMDATA%\EduTrace` ve `%APPDATA%\EduTrace` klasörlerini (geçmiş, ayarlar, lisans) bırakır. Tüm veriyi silmek için kaldırdıktan sonra bu iki klasörü de silin; ilki yönetici izni ister.
 
-KVKK'nın 11. maddesi kapsamındaki haklarınız (verinizin işlenip işlenmediğini öğrenme, düzeltme, silme, itiraz vb.) ve gizlilikle ilgili sorularınız için [GitHub üzerinden](https://github.com/TuncayKaynakkan/EduTrace/issues) iletişime geçebilirsiniz. Satın alma verileriniz için Lemon Squeezy'ye de başvurabilirsiniz.
+KVKK'nın 11. maddesi kapsamındaki haklarınız (verinizin işlenip işlenmediğini öğrenme, düzeltme, silme, itiraz vb.) ve gizlilikle ilgili sorularınız için **kaynakkantun@gmail.com** adresine e-posta gönderebilirsiniz. Kişisel veri içeren talepleri herkese açık olan GitHub Issues yerine e-postayla iletin. Satın alma verileriniz için Lemon Squeezy'ye de başvurabilirsiniz.
 
 Bu metin değişirse güncel hali bu sayfada yayınlanır.
 
@@ -64,4 +64,4 @@ Bu metin değişirse güncel hali bu sayfada yayınlanır.
   2. You add your own Gemini API key. Each alert then sends the attack type, attacker IP, process name and threat-list match to Google. Under Google's [Gemini API terms](https://ai.google.dev/gemini-api/terms), unpaid-tier content may be used to improve Google products and may be read by human reviewers. Use a billing-enabled key or no key if that is not acceptable.
   3. You activate Pro. The license key, activation id and computer name go to Lemon Squeezy, which re-checks the license every 12 hours. Lemon Squeezy is the merchant of record for purchases.
   4. You enable Pro alerts. The attack type, IP and action taken go to Telegram or your SMTP server.
-- Data controller: Tuncay Kaynakkan. Contact: [GitHub issues](https://github.com/TuncayKaynakkan/EduTrace/issues).
+- Data controller: Tuncay Kaynakkan. Contact: kaynakkantun@gmail.com (please do not post personal data in public GitHub issues).
