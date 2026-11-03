@@ -264,7 +264,7 @@ class _AiSettingsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lang = context.watch<LanguageService>();
-    final hasKey = lang.hasCustomGeminiKey;
+    final hasKey = context.watch<SocketService>().aiKeySet;
 
     return Material(
       color: Colors.transparent,

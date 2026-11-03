@@ -311,6 +311,13 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
     });
 
+    socket.on('ai_durumu', (data) {
+      if (data is Map) {
+        _aiKeySet = data['anahtar_var'] == true;
+        notifyListeners();
+      }
+    });
+
     socket.on('gecmis', (data) {
       if (data is! Map) {
         return;
@@ -578,7 +585,13 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  /// Sends updated Gemini API key to the backend engine.
+  bool _aiKeySet = false;
+
+  /// Whether the engine holds a Gemini key. The panel never stores the key:
+  /// the engine keeps it DPAPI-encrypted and only reports that one is set.
+  bool get aiKeySet => _aiKeySet;
+
+  /// Sends updated Gemini API key to the backend engine; "" removes it.
   void updateGeminiApiKey(String apiKey) {
     if (_socket != null && _isConnected) {
       _socket!.emit('gemini_key_guncelle', {'api_key': apiKey});
