@@ -676,6 +676,12 @@ def simulasyon_baslat(data: dict[str, Any] | None = None) -> None:
                     "egitici_rapor": fallback_rapor,
                 },
             )
+        # Let users check their alert channels end to end; marked so nobody
+        # mistakes it for a real attack. Pro's per-IP limit still applies.
+        try:
+            pro.alarm_sonrasi(sim_ip, f"[Simulasyon] {saldiri_turu}", islem_durumu, aciklama)
+        except Exception as exc:
+            print(f"[!] Simulasyon bildirimi gonderilemedi: {exc}")
 
     threading.Thread(target=_calistir, daemon=True).start()
 
