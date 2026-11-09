@@ -353,7 +353,7 @@ class _LicenseDialogState extends State<LicenseDialog> {
                   decoration: InputDecoration(
                     labelText: lang.isEnglish ? 'License Key' : 'Lisans Anahtarı',
                     labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
+                    hintText: 'EDUPRO-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
                     hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     filled: true,
                     fillColor: AppColors.background,
