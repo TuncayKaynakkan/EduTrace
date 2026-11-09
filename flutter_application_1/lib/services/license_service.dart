@@ -58,7 +58,8 @@ class LicenseService extends ChangeNotifier {
   /// Masked license key for display in settings (e.g. "EDUPRO-****-****-2026").
   String get maskedLicenseKey {
     if (_licenseKey == null || _licenseKey!.length < 8) return '—';
-    final start = _licenseKey!.substring(0, 7);
+    // Polar keys start with "EDUPRO-"; keep that prefix without doubling the dash
+    final start = _licenseKey!.substring(0, 7).replaceAll(RegExp(r'-+$'), '');
     final end = _licenseKey!.substring(_licenseKey!.length - 4);
     return '$start-****-****-$end';
   }
