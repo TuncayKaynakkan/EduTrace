@@ -9,9 +9,9 @@ import '../theme.dart';
 
 /// Modal dialog for activating, purchasing, and managing EduTrace PRO licenses.
 class LicenseDialog extends StatefulWidget {
-  /// Lemon Squeezy product store URL
+  /// Polar checkout link for EduTrace Pro
   static const String storeCheckoutUrl =
-      'https://edutrace.lemonsqueezy.com/checkout/buy/ade0fc83-f990-4985-a675-b69ca8a67109';
+      'https://buy.polar.sh/polar_cl_OKQyesEzh2BeSMDK2jZPP8Dts8vAKtA87XOBa2MVudp';
 
   /// Privacy notice (KVKK): what leaves the computer and why
   static const String privacyUrl = 'https://github.com/TuncayKaynakkan/EduTrace/blob/main/PRIVACY.md';
@@ -353,7 +353,7 @@ class _LicenseDialogState extends State<LicenseDialog> {
                   decoration: InputDecoration(
                     labelText: lang.isEnglish ? 'License Key' : 'Lisans Anahtarı',
                     labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    hintText: 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
+                    hintText: 'EDUPRO-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX',
                     hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     filled: true,
                     fillColor: AppColors.background,

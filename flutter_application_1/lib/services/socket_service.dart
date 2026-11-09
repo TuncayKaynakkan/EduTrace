@@ -382,7 +382,7 @@ class SocketService extends ChangeNotifier {
   bool _engineIsPro = false;
   Map<String, dynamic> _notificationSettings = {};
 
-  /// Whether the engine itself verified the Pro license with Lemon Squeezy.
+  /// Whether the engine itself verified the Pro license with Polar.
   bool get engineIsPro => _engineIsPro;
 
   /// Notification settings from the engine; secrets only as `*_tanimli` flags.

@@ -68,7 +68,7 @@ EduTrace yönetici yetkisiyle çalışıp firewall kuralı ekleyebildiği için 
 - IPv4 ve IPv6 kapsamı: Trafik her iki protokolde de analiz edilir. Bilgisayarın tüm adresleri (geçici ve link-local IPv6 adresleri dahil) dakikada bir yenilenir; komşu keşfi (NDP) gibi ICMPv6 kontrol mesajları ping sayılmaz.
 - Durum takipli (stateful) analiz: Bilgisayarın başlattığı UDP/TCP akışlarının yanıtları (QUIC video, DNS, CDN) saldırı sayılmaz. Yanıt sayılmak için TCP paketinin ACK bayrağı taşıması gerekir; böylece tanıdık bir adresten gelen SYN/NULL/FIN/XMAS taramaları da yakalanır.
 - Güvenli firewall kullanımı: Otomatik engelleme ve süreç sonlandırma varsayılan olarak kapalıdır; motor önce uyarır, Pro kullanıcı isterse panelden açar. Her engel panelden geri alınabilir (ücretsiz). Özel, loopback ve multicast adresler engellenemez; `netsh` komutları `shell=False` ile çalışır.
-- Lisans motor tarafında doğrulanır: Panel motora "Pro'yum" diyemez; yalnızca lisans anahtarını iletir. Motor anahtarı Lemon Squeezy'ye kendisi sorar ve anahtarın EduTrace mağazasına ait olduğunu kontrol eder.
+- Lisans motor tarafında doğrulanır: Panel motora "Pro'yum" diyemez; yalnızca lisans anahtarını iletir. Motor anahtarı Polar'a kendisi sorar ve anahtarın EduTrace organizasyonuna ve bu bilgisayardaki etkinleştirmeye ait olduğunu kontrol eder.
 - Yalnızca yerel bağlantı: Panel sadece aynı bilgisayardaki motora (`127.0.0.1`) bağlanır; yerel ağı taramaz ve token'ı başka bir cihaza göndermez.
 - Koda gömülü sır yok: API anahtarları `.env` dosyasından okunur; geliştirici lisans anahtarı yalnızca debug derlemesinde `--dart-define` ile verilir.
 

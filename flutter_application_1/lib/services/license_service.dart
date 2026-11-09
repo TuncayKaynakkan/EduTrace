@@ -19,12 +19,19 @@ class ActivationResult {
   });
 }
 
-/// Service managing EduTrace Pro license validation and Lemon Squeezy integration.
+/// Service managing EduTrace Pro license activation with Polar.
+///
+/// The panel only activates the key and remembers the activation id; the
+/// engine (Pro add-on) does the authoritative check with Polar itself.
 class LicenseService extends ChangeNotifier {
-  static const String _lemonSqueezyActivateUrl =
-      'https://api.lemonsqueezy.com/v1/licenses/activate';
-  static const String _lemonSqueezyValidateUrl =
-      'https://api.lemonsqueezy.com/v1/licenses/validate';
+  // Public customer-portal endpoints: no secret needed, meant for desktop apps
+  static const String _polarActivateUrl =
+      'https://api.polar.sh/v1/customer-portal/license-keys/activate';
+  static const String _polarValidateUrl =
+      'https://api.polar.sh/v1/customer-portal/license-keys/validate';
+
+  /// EduTrace's Polar organization; keys from any other seller are refused.
+  static const String polarOrganizationId = 'a844738a-2521-4133-8ab0-3b24cf221ee7';
 
   // Offline developer key, only honoured in debug builds and never stored in
   // the source: flutter run --dart-define=EDUTRACE_DEV_KEY=<your-key>
@@ -45,13 +52,14 @@ class LicenseService extends ChangeNotifier {
   /// The active license key (partially masked for display).
   String? get licenseKey => _licenseKey;
 
-  /// Lemon Squeezy activation id of this machine.
+  /// Polar activation id of this machine.
   String? get instanceId => _instanceId;
 
   /// Masked license key for display in settings (e.g. "EDUPRO-****-****-2026").
   String get maskedLicenseKey {
     if (_licenseKey == null || _licenseKey!.length < 8) return '—';
-    final start = _licenseKey!.substring(0, 7);
+    // Polar keys start with "EDUPRO-"; keep that prefix without doubling the dash
+    final start = _licenseKey!.substring(0, 7).replaceAll(RegExp(r'-+$'), '');
     final end = _licenseKey!.substring(_licenseKey!.length - 4);
     return '$start-****-****-$end';
   }
@@ -139,7 +147,7 @@ class LicenseService extends ChangeNotifier {
     return key.trim().toUpperCase() == _devKey.trim().toUpperCase();
   }
 
-  /// Attempts to activate a license key via Lemon Squeezy API or offline developer validation.
+  /// Attempts to activate a license key via the Polar API or offline developer validation.
   Future<ActivationResult> activateLicense(String key) async {
     final cleanKey = key.trim();
     if (cleanKey.isEmpty) {
@@ -171,55 +179,53 @@ class LicenseService extends ChangeNotifier {
         );
       }
 
-      // 2. Query Lemon Squeezy License API
+      // 2. Activate this computer with Polar
       final instanceName = Platform.localHostname;
       final response = await http.post(
-        Uri.parse(_lemonSqueezyActivateUrl),
-        headers: {'Accept': 'application/json'},
-        body: {
-          'license_key': cleanKey,
-          'instance_name': instanceName,
-        },
+        Uri.parse(_polarActivateUrl),
+        headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'key': cleanKey,
+          'organization_id': polarOrganizationId,
+          'label': instanceName,
+        }),
       ).timeout(const Duration(seconds: 12));
 
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
+      final body = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      final licenseKeyData = body['license_key'] as Map<String, dynamic>?;
 
-      if (response.statusCode == 200 && body['activated'] == true) {
-        final licenseKeyData = body['license_key'] as Map<String, dynamic>?;
-        final meta = body['meta'] as Map<String, dynamic>?;
-        final instance = body['instance'] as Map<String, dynamic>?;
-
+      if (response.statusCode == 200 && body['id'] != null && licenseKeyData?['status'] == 'granted') {
         _isPro = true;
         _licenseKey = cleanKey;
-        _instanceId = instance?['id']?.toString() ?? 'instance-$instanceName';
-        _customerName = meta?['customer_name']?.toString() ?? 'EduTrace Müşterisi';
-        _customerEmail = meta?['customer_email']?.toString() ?? '';
-
+        _instanceId = body['id'].toString();
+        _customerName = null;
+        _customerEmail = null;
         final expiresStr = licenseKeyData?['expires_at']?.toString();
-        if (expiresStr != null) {
-          _expiresAt = DateTime.tryParse(expiresStr);
-        }
+        _expiresAt = expiresStr == null ? null : DateTime.tryParse(expiresStr);
 
+        // The activation answer has no customer details; validate fills them in
+        await _validateInBackground();
         _saveLicense();
         _isLoading = false;
         notifyListeners();
 
         return ActivationResult(
-          success: true,
-          message: 'Tebrikler! EduTrace PRO lisansınız başarıyla doğrulandı.',
+          success: _isPro,
+          message: _isPro
+              ? 'Tebrikler! EduTrace PRO lisansınız başarıyla doğrulandı.'
+              : 'Lisans etkinleştirildi ama doğrulanamadı. Lütfen tekrar deneyin.',
           customerName: _customerName,
           customerEmail: _customerEmail,
         );
-      } else {
-        final errorMsg = body['error']?.toString() ??
-            'Lisans anahtarı geçersiz veya kullanım limitine ulaşılmış.';
-        _isLoading = false;
-        notifyListeners();
-        return ActivationResult(
-          success: false,
-          message: errorMsg,
-        );
       }
+
+      _isLoading = false;
+      notifyListeners();
+      return ActivationResult(
+        success: false,
+        message: _activationError(response.statusCode, body),
+      );
     } on SocketException {
       _isLoading = false;
       notifyListeners();
@@ -258,25 +264,55 @@ class LicenseService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Turns a Polar error answer into a message the user can act on.
+  static String _activationError(int status, Map<String, dynamic> body) {
+    final detail = body['detail'];
+    if (status == 403) {
+      return 'Bu lisans izin verilen bilgisayar sayısına ulaştı. '
+          'Eski bir bilgisayardaki etkinleştirmeyi Polar müşteri portalından kaldırın.';
+    }
+    if (status == 404) {
+      return 'Lisans anahtarı bulunamadı veya iptal edilmiş.';
+    }
+    if (detail is String && detail.isNotEmpty) {
+      return 'Lisans etkinleştirilemedi: $detail';
+    }
+    return 'Lisans etkinleştirilemedi (HTTP $status).';
+  }
+
   Future<void> _validateInBackground() async {
     if (_licenseKey == null || _instanceId == null) return;
     try {
       final response = await http.post(
-        Uri.parse(_lemonSqueezyValidateUrl),
-        headers: {'Accept': 'application/json'},
-        body: {
-          'license_key': _licenseKey!,
-          'instance_id': _instanceId!,
-        },
+        Uri.parse(_polarValidateUrl),
+        headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'key': _licenseKey!,
+          'organization_id': polarOrganizationId,
+          'activation_id': _instanceId!,
+        }),
       ).timeout(const Duration(seconds: 10));
 
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      if (response.statusCode == 200 && body['valid'] == false) {
-        // License was refunded or revoked
+      if (response.statusCode == 404 || response.statusCode == 422) {
+        // Refunded, revoked, expired, or this activation was removed
         _isPro = false;
         _saveLicense();
         notifyListeners();
+        return;
       }
+      if (response.statusCode != 200) {
+        return; // Server trouble is not a verdict on the key
+      }
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (body['status'] != 'granted' || body['organization_id'] != polarOrganizationId) {
+        _isPro = false;
+      } else {
+        final customer = body['customer'] as Map<String, dynamic>?;
+        _customerName = customer?['name']?.toString() ?? _customerName;
+        _customerEmail = customer?['email']?.toString() ?? _customerEmail;
+      }
+      _saveLicense();
+      notifyListeners();
     } catch (_) {
       // In case of transient network loss, don't immediately revoke cached license
     }
