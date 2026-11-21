@@ -8,12 +8,18 @@ and multicast addresses are always refused so the user's LAN is never cut off.
 from __future__ import annotations
 
 import ipaddress
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 
 RULE_PREFIX = "EduTrace Block"
 _TIMEOUT = 10
+# Listing walks every rule on the machine, which takes a few seconds
+_LISTE_TIMEOUT = 30
+# Matches the rule name we create, wherever it appears in netsh's output. Only the
+# value is matched, never a label, so it works on any Windows display language.
+_KURAL_ADI = re.compile(rf"{re.escape(RULE_PREFIX)} (\S+) \((?:in|out)\)")
 
 
 @dataclass(frozen=True)
@@ -87,6 +93,35 @@ def ip_engelle(ip: str) -> FirewallResult:
                 f"{(sonuc.stdout or sonuc.stderr).strip()}",
             )
     return FirewallResult(True, f"{adres} Windows Guvenlik Duvari'nda engellendi.")
+
+
+def engel_kurallari() -> list[str]:
+    """IPs that currently have an EduTrace block rule in Windows Firewall.
+
+    Read from the firewall itself, not from our records: rules outlive the engine
+    and may have been created by an older version that kept no record.
+    """
+    if not desteklenir_mi():
+        return []
+    try:
+        sonuc = subprocess.run(
+            ["netsh", "advfirewall", "firewall", "show", "rule", "name=all"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=_LISTE_TIMEOUT,
+            check=False,
+            shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    adresler: set[str] = set()
+    for aday in _KURAL_ADI.findall(sonuc.stdout or ""):
+        try:
+            adresler.add(str(ipaddress.ip_address(aday)))
+        except ValueError:
+            continue
+    return sorted(adresler)
 
 
 def ip_engeli_kaldir(ip: str) -> FirewallResult:

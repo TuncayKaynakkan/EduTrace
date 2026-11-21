@@ -545,6 +545,11 @@ def engellenenleri_gonder() -> None:
         for ip, bilgi in engel_kayitlari.hepsi().items()
         if isinstance(bilgi, dict)
     ]
+    kayitli = {k["ip"] for k in kayitlar}
+    # Rules an older version created kept no record; show them so they can be undone
+    for ip in firewall.engel_kurallari():
+        if ip not in kayitli:
+            kayitlar.append({"ip": ip, "zaman": 0, "neden": "", "kayitsiz": True})
     kayitlar.sort(key=lambda k: k.get("zaman", 0), reverse=True)
     socketio.emit("engellenenler", kayitlar)
 
@@ -560,7 +565,8 @@ def engellenenler_iste(_data: Any = None) -> None:
 def engeli_kaldir(data: Any) -> None:
     """Undo a block. Free: every user must be able to reverse a block."""
     ip = str(data.get("ip", "")) if isinstance(data, dict) else ""
-    if not ip or engel_kayitlari.al(ip) is None:
+    # A rule from an older version has no record; the firewall itself is the proof
+    if not ip or (engel_kayitlari.al(ip) is None and ip not in firewall.engel_kurallari()):
         socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"{ip} EduTrace tarafindan engellenmemis."})
         return
     fw = firewall.ip_engeli_kaldir(ip)
