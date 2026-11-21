@@ -35,6 +35,22 @@ EduTrace open-core olarak geliştirilir: motor ve panel bu depoda MIT lisansıyl
 
 ---
 
+📥 Kurulum (Windows 10/11)
+
+1. [Releases](https://github.com/TuncayKaynakkan/EduTrace/releases/latest) sayfasından `EduTrace-Setup-X.Y.Z.exe` dosyasını indirin.
+2. Dosyanın yayınlanan sürümle aynı olduğunu doğrulayın. PowerShell'de indirdiğiniz klasörde:
+
+   ```powershell
+   Get-FileHash .\EduTrace-Setup-1.2.0.exe -Algorithm SHA256
+   ```
+
+   Çıkan değer, sürüm notlarındaki SHA-256 ile birebir aynı olmalıdır. Farklıysa dosyayı çalıştırmayın.
+3. Kurulum dosyasını çalıştırın (yönetici izni ister). Ağ trafiğini yakalamak için [Npcap](https://npcap.com/#download) gerekir; kurulum, yoksa indirme sayfasını açmayı önerir.
+
+Windows SmartScreen uyarısı hakkında: Kurulum dosyası şu an kod imzalı değildir, çünkü bireysel geliştirici için kod imzalama sertifikası yıllık ücretlidir. Yeni ve imzasız bir dosya için Windows "Windows bilgisayarınızı korudu" uyarısı gösterebilir. Dosyayı yukarıdaki SHA-256 ile doğruladıysanız **Ek bilgi → Yine de çalıştır** ile devam edebilirsiniz. Bu uyarı dosyanın zararlı olduğu anlamına gelmez; yalnızca Windows'un henüz tanımadığı bir yayımcı olduğunu belirtir. Motor ve panelin kaynak kodu bu depoda açıktır.
+
+---
+
  🛠️ Mimari ve Teknolojiler
 
 Proje iki ana bileşenden oluşmaktadır:
