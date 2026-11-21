@@ -62,3 +62,39 @@ def test_unblock_deletes_both_rules():
 
 def test_unblock_rejects_invalid_ip():
     assert not firewall.ip_engeli_kaldir("abc").ok
+
+
+# netsh prints labels in the Windows display language; only rule names are matched
+_NETSH_CIKTISI = """
+Kural Adı:                            EduTrace Block 34.54.88.138 (in)
+----------------------------------------------------------------------
+Etkin:                                Evet
+Kural Adı:                            EduTrace Block 34.54.88.138 (out)
+Kural Adı:                            EduTrace Block 2606:4700:4700::1111 (in)
+Kural Adı:                            EduTrace Block not-an-ip (in)
+Kural Adı:                            EduTrace Block 1.2.3.4; calc (out)
+Kural Adı:                            Baska Program Kurali
+"""
+
+
+def _netsh_cikti(cikti, kod=0):
+    return lambda *_a, **_k: subprocess.CompletedProcess(args=[], returncode=kod, stdout=cikti, stderr="")
+
+
+def test_lists_ips_from_rule_names_in_any_language():
+    with patch("firewall.sys.platform", "win32"), patch("firewall.subprocess.run", _netsh_cikti(_NETSH_CIKTISI)):
+        assert firewall.engel_kurallari() == ["2606:4700:4700::1111", "34.54.88.138"]
+
+
+def test_listing_is_empty_without_rules_or_off_windows():
+    with patch("firewall.sys.platform", "win32"), patch("firewall.subprocess.run", _netsh_cikti("")):
+        assert firewall.engel_kurallari() == []
+    with patch("firewall.sys.platform", "linux"), patch("firewall.subprocess.run") as run:
+        assert firewall.engel_kurallari() == []
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("hata", [subprocess.TimeoutExpired("netsh", 30), OSError("yok")])
+def test_listing_failure_returns_empty_list(hata):
+    with patch("firewall.sys.platform", "win32"), patch("firewall.subprocess.run", side_effect=hata):
+        assert firewall.engel_kurallari() == []

@@ -209,11 +209,16 @@ class _BlockedIpsDialogState extends State<_BlockedIpsDialog> {
                 itemBuilder: (_, i) {
                   final b = blocked[i];
                   final ip = b['ip']?.toString() ?? '';
+                  // Rules left by an older version have no record, so no reason or time
+                  final unrecorded = b['kayitsiz'] == true;
+                  final detail = unrecorded
+                      ? (en ? 'No record (left from an older version)' : 'Kayıt yok (eski sürümden kalmış)')
+                      : '${b['neden'] ?? ''} · ${_HistoryDialogState._time(b['zaman'] as num? ?? 0)}';
                   return ListTile(
                     dense: true,
                     title: Text(ip, style: const TextStyle(fontFamily: 'Consolas')),
                     subtitle: Text(
-                      '${b['neden'] ?? ''} · ${_HistoryDialogState._time(b['zaman'] as num? ?? 0)}',
+                      detail,
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                     trailing: TextButton(

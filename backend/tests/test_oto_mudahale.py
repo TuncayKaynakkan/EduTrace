@@ -10,12 +10,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import edutrace_ultimate as et  # noqa: E402
 
 IP = "198.51.100.7"
+YETIM_IP = "203.0.113.9"
+# Rules the fake firewall reports even though the engine has no record of them
+YETIM_KURALLAR: list[str] = []
 
 
 @pytest.fixture
 def ortam(monkeypatch):
     engellenen, kaldirilan, sonlandirilan, olaylar = [], [], [], []
+    YETIM_KURALLAR.clear()
     monkeypatch.setattr(et, "ENGELLENEN_IPLER", set())
+    # Never run the real netsh listing: it would see this machine's own rules
+    monkeypatch.setattr(et.firewall, "engel_kurallari", lambda: list(YETIM_KURALLAR))
     monkeypatch.setattr(
         et.firewall, "ip_engelle",
         lambda ip: (engellenen.append(ip), et.firewall.FirewallResult(True, "engellendi"))[1],
@@ -94,6 +100,31 @@ def test_edutracein_engellemedigi_ip_kaldirilamaz(ortam):
     et.engeli_kaldir.__wrapped__({"ip": "8.8.8.8"})
     assert kaldirilan == []
     assert olaylar[-1][1]["durum"] == "hata"
+
+
+def test_eski_surumden_kalan_kural_listelenir_ve_kaldirilir(ortam):
+    _, kaldirilan, _, olaylar = ortam
+    YETIM_KURALLAR.append(YETIM_IP)
+
+    et.engellenenleri_gonder()
+    liste = olaylar[-1][1]
+    assert [k["ip"] for k in liste] == [YETIM_IP]
+    assert liste[0]["kayitsiz"] is True
+
+    et.engeli_kaldir.__wrapped__({"ip": YETIM_IP})
+    assert kaldirilan == [YETIM_IP]
+    assert any(o == "islem_bildirimi" and v["durum"] == "basarili" for o, v in olaylar)
+
+
+def test_kayitli_engel_listede_iki_kez_gorunmez(ortam):
+    et.ip_manuel_engelle.__wrapped__({"ip": IP})
+    YETIM_KURALLAR.append(IP)  # the firewall also reports it
+
+    _, _, _, olaylar = ortam
+    et.engellenenleri_gonder()
+    liste = olaylar[-1][1]
+    assert [k["ip"] for k in liste] == [IP]
+    assert "kayitsiz" not in liste[0]
 
 
 def test_manuel_engel_kaydedilir_ve_ucretsiz_kaldirilir(ortam):
