@@ -1,4 +1,4 @@
-name: flutter_application_1
+name: edutrace
 description: "EduTrace XDR — real-time network threat monitoring dashboard."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.

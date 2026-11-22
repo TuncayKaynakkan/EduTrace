@@ -33,12 +33,12 @@ python -m PyInstaller --noconfirm --clean --onedir --noconsole --noupx --name Ed
   --collect-all scapy --hidden-import sklearn.ensemble --hidden-import google.genai `
   @proArgs `
   --distpath "$root\installer\build" --workpath "$root\installer\build\work" `
-  --icon "$root\flutter_application_1\windows\runner\resources\app_icon.ico" `
+  --icon "$root\panel\windows\runner\resources\app_icon.ico" `
   --specpath "$root\installer\build" edutrace_ultimate.py
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
 
 Write-Host '== 2/3 Flutter (Windows release) ==' -ForegroundColor Cyan
-Set-Location "$root\flutter_application_1"
+Set-Location "$root\panel"
 flutter build windows --release
 if ($LASTEXITCODE -ne 0) { throw 'flutter build failed' }
 
