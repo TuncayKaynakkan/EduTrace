@@ -44,9 +44,9 @@ void main() {
     ]) {
       expect(find.text(lang.text(key)), findsWidgets, reason: 'missing "$key"');
     }
-    // The process panel title is not in the language dictionary yet.
+    // The process panel title comes from the dictionary too.
     expect(
-      find.text(lang.isEnglish ? 'Network Applications' : 'Ağa Bağlı Uygulamalar'),
+      find.text(lang.text('process_title')),
       findsWidgets,
     );
   });
