@@ -15,7 +15,7 @@ class _OfflineSocketService extends SocketService {
 void main() {
   testWidgets('Dashboard renders its stat cards and panels', (tester) async {
     // The dashboard is a wide desktop layout; the default test surface is too small.
-    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.physicalSize = const Size(2400, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
