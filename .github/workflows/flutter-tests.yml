@@ -1,0 +1,53 @@
+# Runs flutter analyze and flutter test for the dashboard on pull requests and on pushes to main.
+name: Flutter Tests
+
+on:
+  pull_request:
+    paths:
+      - "flutter_application_1/**"
+      - ".github/workflows/flutter-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flutter_application_1/**"
+      - ".github/workflows/flutter-tests.yml"
+  workflow_dispatch:
+
+# Least privilege: the job only needs to read the code
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the run that is still going
+concurrency:
+  group: flutter-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: flutter (Windows)
+    # The panel is a Windows desktop app and reads %APPDATA%, so test where it runs
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: flutter_application_1
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: Flutter kur
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bağımlılıkları indir
+        run: flutter pub get
+
+      - name: Statik analiz
+        run: flutter analyze --no-fatal-infos
+
+      - name: Testleri çalıştır
+        run: flutter test --reporter expanded
