@@ -122,7 +122,7 @@ class LanguageService extends ChangeNotifier {
     'radar_min_ago': '{n} dk önce',
 
     // Process List Panel
-    'process_title': 'Aktif Uygulamalar',
+    'process_title': 'Ağa Bağlı Uygulamalar',
     'process_count': '{n} uygulama',
     'process_empty': 'Ağa bağlı uygulama tespit edilmedi.',
     'terminate_task': 'Görevi Sonlandır',
@@ -175,7 +175,7 @@ class LanguageService extends ChangeNotifier {
     'radar_min_ago': '{n}m ago',
 
     // Process List Panel
-    'process_title': 'Active Applications',
+    'process_title': 'Network Applications',
     'process_count': '{n} apps',
     'process_empty': 'No network-connected applications detected.',
     'terminate_task': 'End Task',
