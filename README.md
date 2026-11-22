@@ -111,6 +111,15 @@ python -m pytest tests -v
 | `test_socket_auth.py` | Token'sız/yanlış token'lı bağlantıların reddi |
 | `test_tehdit_karari.py` | Alarm kaynağına göre engelleme kararı |
 | `test_ipv6.py` | IPv6 tarama tespiti, QUIC yanıtları, NDP, yerel adresler, IPv6 firewall |
+| `test_gecmis_rapor.py` | Alarm geçmişi, saklama süresi, sürüme göre geçmiş penceresi |
+| `test_gizli.py` | DPAPI ile şifreli Gemini anahtarı, eski düz metin anahtarın taşınması |
+| `test_oto_mudahale.py` | Otomatik müdahale kancaları, korunan süreçler, beyaz liste, engelin geri alınması |
+| `test_ozel_kurallar.py` | Ayarlanabilir eşikler ve özel port kuralları |
+| `test_pro_kancalari.py` | Pro eklentisi yokken veya bozukken ücretsiz sürüme dönüş |
+| `test_simulasyon.py` | Tehdit simülasyonunun Pro bildirim kancasına da gitmesi |
+| `test_tek_ornek.py` | Aynı anda tek motor çalışır; ikinci kopya `auth.token`'a dokunmaz |
+| `test_threat_intel.py` | Çevrimdışı engel listeleri (Spamhaus, Feodo), indirme hatasında eski kopya |
+| `test_yetki_tokeni.py` | `auth.token` oluşturma; panelin okuyamadığı token kullanılmaz |
 
 Çalışan bir motora karşı kimlik doğrulamasını elle denemek için: `python tools/yetkisiz_istemci.py` (token'sız → reddedilmeli), `--yanlis` (reddedilmeli), `--dogru` (bağlanmalı).
 
