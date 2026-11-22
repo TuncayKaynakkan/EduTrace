@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/services/language_service.dart';
-import 'package:flutter_application_1/services/license_service.dart';
-import 'package:flutter_application_1/services/socket_service.dart';
+import 'package:edutrace/main.dart';
+import 'package:edutrace/services/language_service.dart';
+import 'package:edutrace/services/license_service.dart';
+import 'package:edutrace/services/socket_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 

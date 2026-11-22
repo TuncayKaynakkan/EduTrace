@@ -4,8 +4,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-LOGO_PATH = ROOT / "flutter_application_1" / "assets" / "app_logo.png"
-OUT = ROOT / "flutter_application_1" / "windows" / "runner" / "resources" / "app_icon.ico"
+LOGO_PATH = ROOT / "panel" / "assets" / "app_logo.png"
+OUT = ROOT / "panel" / "windows" / "runner" / "resources" / "app_icon.ico"
 PREVIEW = OUT.parent / "app_icon_preview.png"
 
 def make_icon() -> None:

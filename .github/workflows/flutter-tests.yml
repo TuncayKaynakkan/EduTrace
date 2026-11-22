@@ -4,12 +4,12 @@ name: Flutter Tests
 on:
   pull_request:
     paths:
-      - "flutter_application_1/**"
+      - "panel/**"
       - ".github/workflows/flutter-tests.yml"
   push:
     branches: [main]
     paths:
-      - "flutter_application_1/**"
+      - "panel/**"
       - ".github/workflows/flutter-tests.yml"
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: flutter_application_1
+        working-directory: panel
 
     steps:
       - name: Kodu indir

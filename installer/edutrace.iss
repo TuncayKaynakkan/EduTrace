@@ -18,7 +18,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayName={#AppName}
-SetupIconFile=..\flutter_application_1\windows\runner\resources\app_icon.ico
+SetupIconFile=..\panel\windows\runner\resources\app_icon.ico
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -34,7 +34,7 @@ Name: "{commonappdata}\EduTrace"
 
 [Files]
 Source: "build\EduTraceEngine\*"; DestDir: "{app}\engine"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\flutter_application_1\build\windows\x64\runner\Release\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\panel\build\windows\x64\runner\Release\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\backend\.env.example"; DestDir: "{commonappdata}\EduTrace"; DestName: ".env"; Flags: onlyifdoesntexist uninsneveruninstall
 
 [Icons]
