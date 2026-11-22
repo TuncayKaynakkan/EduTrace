@@ -93,7 +93,7 @@ class ProcessListPanel extends StatelessWidget {
       });
 
     return SectionCard(
-      title: lang.isEnglish ? 'Network Applications' : 'Ağa Bağlı Uygulamalar',
+      title: lang.text('process_title'),
       icon: Icons.apps,
       accent: AppColors.warning,
       trailing: Text(
