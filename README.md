@@ -1,8 +1,8 @@
-# 🛡️ EduTrace - Real-Time Autonomous XDR & Security Platform
+# 🛡️ EduTrace - Real-Time AI-Assisted XDR & Security Platform
 
 [![Backend Tests](https://github.com/TuncayKaynakkan/EduTrace/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/TuncayKaynakkan/EduTrace/actions/workflows/backend-tests.yml)
 
-EduTrace, ağ üzerindeki tehditleri tespit etmek, cihaz durumlarını ve ağ trafiğini gerçek zamanlı izlemek amacıyla geliştirilmiş AI destekli ve tam otonom bir XDR (Extended Detection and Response) platformudur.
+EduTrace, ağ üzerindeki tehditleri tespit etmek, cihaz durumlarını ve ağ trafiğini gerçek zamanlı izlemek amacıyla geliştirilmiş yapay zekâ destekli, açık çekirdekli (open-core) bir XDR (Extended Detection and Response) platformudur.
 
 Proje; modern ve sezgisel bir mobil/masaüstü kullanıcı arayüzü ile güçlü bir Python arka plan analiz motorunu bir araya getirir.
 
