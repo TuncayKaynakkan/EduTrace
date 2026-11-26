@@ -2,10 +2,9 @@
 name: Flutter Tests
 
 on:
+  # No path filter on PRs: "flutter (Windows)" is a required check in the main
+  # ruleset, so it must report on every PR or backend-only PRs could never merge.
   pull_request:
-    paths:
-      - "panel/**"
-      - ".github/workflows/flutter-tests.yml"
   push:
     branches: [main]
     paths:
