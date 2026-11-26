@@ -806,6 +806,16 @@ def ag_ronto_cek(sure: int) -> dict[str, dict[str, Any]]:
     return stats
 
 
+def eski_kayitlari_temizle() -> None:
+    """Forget per-IP state older than its window; forged sources would grow it without bound."""
+    now = time.time()
+    imza_motoru.eskileri_temizle()
+    with _state_lock:
+        for tablo, omur in ((_last_traffic_emit, 60.0), (_last_threat_time, 3 * THREAT_COOLDOWN)):
+            for ip in [k for k, t in tablo.items() if now - t > omur]:
+                del tablo[ip]
+
+
 def emit_temiz_trafik(ip: str, paket: int) -> None:
     """Emit clean-traffic events with per-IP throttling."""
     now = time.time()
@@ -978,6 +988,7 @@ def edutrace_sentinel_motoru() -> None:
     model_hazir = False
     son_egitim = time.time()
     son_adres_yenileme = time.time()
+    son_temizlik = time.time()
     while True:
         su_an = time.time()
         # Temporary IPv6 addresses rotate; keep our own traffic recognisable
@@ -1001,6 +1012,10 @@ def edutrace_sentinel_motoru() -> None:
                     )
             time.sleep(5)
             continue
+
+        if su_an - son_temizlik > 60:
+            eski_kayitlari_temizle()
+            son_temizlik = su_an
 
         for ip, veri in anlik.items():
             with _state_lock:
