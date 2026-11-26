@@ -465,28 +465,44 @@ def karar_uygula(_data: dict[str, Any]) -> None:
     print("[!] Manuel mudahale reddedildi. Sistem otonom XDR modunda calisiyor.")
 
 
+# PIDs of the processes the dashboard currently lists; only these may be terminated
+_aktif_pidler: set[int] = set()
+
+
 @socketio.on("surec_sonlandir")
 @yetkili
-def surec_sonlandir(data: dict[str, Any]) -> None:
-    """Terminates process(es) requested by the user from the dashboard."""
-    pids = data.get("pids", [])
-    ad = data.get("ad", "Bilinmeyen Surec")
-    
-    if ad.lower() in KORUNAN_SURECLER:
-        socketio.emit(
-            "islem_bildirimi",
-            {"durum": "hata", "mesaj": f"Kritik sistem sureci ({ad}) sonlandirilamaz!"},
-        )
+def surec_sonlandir(data: Any) -> None:
+    """Terminates process(es) requested by the user from the dashboard.
+
+    The client only names PIDs it saw in ``aktif_uygulamalar``. The protected-name
+    check uses the real process name: a client-supplied name proves nothing.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pids"), list):
         return
+    ad = str(data.get("ad", "Bilinmeyen Surec"))
 
     basarili_sayi = 0
     hatalar = []
 
-    for pid in pids:
+    for pid in data["pids"]:
         try:
-            p = psutil.Process(int(pid))
+            pid = int(pid)
+            with _state_lock:
+                listede = pid in _aktif_pidler
+            if not listede or pid == os.getpid():
+                hatalar.append(f"PID {pid} listede degil")
+                continue
+            p = psutil.Process(pid)
+            if p.name().lower() in KORUNAN_SURECLER:
+                socketio.emit(
+                    "islem_bildirimi",
+                    {"durum": "hata", "mesaj": f"Kritik sistem sureci ({p.name()}) sonlandirilamaz!"},
+                )
+                return
             p.terminate()
             basarili_sayi += 1
+        except (TypeError, ValueError):
+            hatalar.append("gecersiz PID")
         except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
             hatalar.append(str(exc))
 
@@ -504,17 +520,18 @@ def surec_sonlandir(data: dict[str, Any]) -> None:
 
 @socketio.on("ip_engelle")
 @yetkili
-def ip_manuel_engelle(data: dict[str, Any]) -> None:
+def ip_manuel_engelle(data: Any) -> None:
     """Blocks an IP address on Windows Firewall on user request."""
-    ip = data.get("ip", "")
-    if not ip or ip in BEYAZ_LISTE or ip in YEREL_ADRESLER:
+    ip = data.get("ip", "") if isinstance(data, dict) else ""
+    if not isinstance(ip, str) or not ip or ip in BEYAZ_LISTE or ip in YEREL_ADRESLER:
         socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"{ip} guvenli listede veya gecersiz!"})
         return
 
     fw = firewall.ip_engelle(ip)
-    with _state_lock:
-        ENGELLENEN_IPLER.add(ip)
+    # Only a real block hides the IP from detection; a failed or invalid one must not
     if fw.ok:
+        with _state_lock:
+            ENGELLENEN_IPLER.add(ip)
         engeli_kaydet(ip, "Manuel engelleme")
     socketio.emit(
         "islem_bildirimi",
@@ -913,6 +930,9 @@ def canli_gorev_yoneticisi() -> None:
           except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
+        with _state_lock:
+            _aktif_pidler.clear()
+            _aktif_pidler.update(gordugum_pidler)
         socketio.emit("aktif_uygulamalar", aktif_uygulamalar)
         time.sleep(PROCESS_SCAN_INTERVAL)
 
