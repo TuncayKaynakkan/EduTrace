@@ -136,6 +136,16 @@ class ThreatSignatureEngine:
         if not q and ip in self._history:
             del self._history[ip]
 
+    def eskileri_temizle(self) -> None:
+        """Drop every IP whose window has emptied.
+
+        ``_temizle`` only runs for an IP when it sends again, so addresses seen once
+        (forged sources, scans) would otherwise stay in memory for good.
+        """
+        now = time.time()
+        for ip in list(self._history):
+            self._temizle(ip, now)
+
     def sifirla(self, ip: str) -> None:
         """Reset history for an IP once an alert has been generated to prevent re-triggering."""
         if ip in self._history:

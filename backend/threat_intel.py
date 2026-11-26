@@ -32,6 +32,11 @@ KAYNAKLAR = {
 }
 YENILEME_SN = 12 * 3600  # Spamhaus asks for no more than one download per hour
 INDIRME_ZAMAN_ASIMI = 15
+# A list is a few hundred KB; anything bigger is not a blocklist
+MAKS_LISTE_BAYT = 5 * 1024 * 1024
+# Real DROP entries are /8 or longer (v6: /16). A shorter prefix would match a large
+# part of the internet, so a poisoned feed could get everything blocked.
+EN_KISA_ONEK = {4: 8, 6: 16}
 KULLANICI_AJANI = "EduTrace/1.2 (+https://github.com/TuncayKaynakkan/EduTrace)"
 
 
@@ -54,7 +59,10 @@ def spamhaus_ayristir(metin: str) -> list[tuple[ipaddress.IPv4Network | ipaddres
             kayit = json.loads(satir)
             if "cidr" not in kayit:
                 continue
-            aglar.append((ipaddress.ip_network(kayit["cidr"], strict=False), str(kayit.get("sblid", ""))))
+            ag = ipaddress.ip_network(kayit["cidr"], strict=False)
+            if ag.prefixlen < EN_KISA_ONEK[ag.version]:
+                continue
+            aglar.append((ag, str(kayit.get("sblid", ""))))
         except (ValueError, TypeError):
             continue
     return aglar
@@ -109,6 +117,8 @@ class TehditListeleri:
             try:
                 yanit = requests.get(url, timeout=INDIRME_ZAMAN_ASIMI, headers={"User-Agent": KULLANICI_AJANI})
                 yanit.raise_for_status()
+                if len(yanit.content) > MAKS_LISTE_BAYT:
+                    raise OSError(f"liste cok buyuk ({len(yanit.content)} bayt)")
                 gecici = self._yol(dosya) + ".tmp"
                 with open(gecici, "wb") as f:
                     f.write(yanit.content)
