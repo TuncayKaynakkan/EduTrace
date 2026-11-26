@@ -206,6 +206,13 @@ def aktif_yerel_ip_bul() -> str:
 AKTIF_IP = aktif_yerel_ip_bul()
 BEYAZ_LISTE = ["127.0.0.1", "192.168.1.1", AKTIF_IP, "255.255.255.255"]
 YEREL_ADRES_YENILEME = 60
+# Public resolvers a spoofed flood could impersonate to get them blocked
+KORUNAN_DNS = frozenset({
+    "1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "149.112.112.112",
+    "208.67.222.222", "208.67.220.220",
+    "2606:4700:4700::1111", "2606:4700:4700::1001",
+    "2001:4860:4860::8888", "2001:4860:4860::8844", "2620:fe::fe",
+})
 
 
 def yerel_adresleri_bul() -> set[str]:
@@ -797,6 +804,20 @@ KAYNAK_ESIK = "esik"  # hard volume threshold (1000+ packets to 50+ ports)
 KAYNAK_ML = "ml"      # IsolationForest: traffic is unusual, not proven malicious
 
 
+def korunan_ip_mi(ip: str) -> bool:
+    """IPs that must never be blocked automatically.
+
+    Packet sources can be forged, so an attacker on the same network could make
+    EduTrace block a resolver or a server we are talking to. A well-known DNS
+    server, or any host we hold an established connection with, is skipped.
+    """
+    if ip in KORUNAN_DNS:
+        return True
+    return any(
+        c.status == "ESTABLISHED" and c.raddr and c.raddr.ip == ip for c in _baglantilar()
+    )
+
+
 def engelleme_karari(kaynak: str, istihbarat: dict[str, Any]) -> bool:
     """Whether an alert is acted on (firewall, process kill) or only reported.
 
@@ -825,6 +846,19 @@ def _tehdit_isle(
             return
         print(f"\n[!!!] TEHDIT YAKALANDI: {ip} -> {saldiri_turu} (kaynak: {kaynak})")
         istihbarat_raporu = istihbarat_sorgula(ip)
+
+        if korunan_ip_mi(ip):
+            print(f"[~] {ip} korunan/etkin bagli adres; sahte kaynak olabilir, engellenmedi.")
+            olay_gecmisi.kaydet(ip, saldiri_turu, kaynak, aciklama, "Izleniyor (korunan adres, engellenmedi)", False)
+            socketio.emit(
+                "islem_bildirimi",
+                {
+                    "durum": "bilgi",
+                    "mesaj": f"{ip} adresinden {saldiri_turu} goruldu; ancak bu adres bilinen bir DNS "
+                    "sunucusu ya da etkin bagli oldugunuz bir host. Kaynak sahte olabilir, engellenmedi.",
+                },
+            )
+            return
 
         if not engelleme_karari(kaynak, istihbarat_raporu):
             print(
