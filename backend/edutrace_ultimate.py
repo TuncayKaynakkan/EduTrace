@@ -91,8 +91,22 @@ MAX_TRAINING_SAMPLES = 1000
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_TIMEOUT = 25
 GEMINI_MAX_RETRIES = 3
-# Varsayilan olarak yalnizca yerel makineye acik; ag uzerinden erisim icin SERVER_HOST=0.0.0.0
-SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+def sunucu_adresi_sec(deger: str) -> str:
+    """Bind address for the engine: loopback only.
+
+    The engine runs on Flask's development server without TLS, so the auth token
+    would cross the network in clear text. A non-loopback SERVER_HOST is ignored.
+    """
+    try:
+        if ipaddress.ip_address(deger).is_loopback:
+            return deger
+    except ValueError:
+        pass
+    print(f"[!] SERVER_HOST={deger!r} yok sayildi: motor yalnizca yerel makinede dinler (127.0.0.1).")
+    return "127.0.0.1"
+
+
+SERVER_HOST = sunucu_adresi_sec(os.getenv("SERVER_HOST", "127.0.0.1"))
 SERVER_PORT = int(os.getenv("SERVER_PORT", "5000"))
 # Automatic firewall blocking and process termination are EduTrace Pro
 # settings (see pro_kancalari.py), off by default so a false positive never
@@ -530,7 +544,7 @@ def surec_sonlandir(data: Any) -> None:
 def ip_manuel_engelle(data: Any) -> None:
     """Blocks an IP address on Windows Firewall on user request."""
     ip = data.get("ip", "") if isinstance(data, dict) else ""
-    if not isinstance(ip, str) or not ip or ip in BEYAZ_LISTE or ip in YEREL_ADRESLER:
+    if not isinstance(ip, str) or not ip or ip in BEYAZ_LISTE or ip in YEREL_ADRESLER or ip in KORUNAN_DNS:
         socketio.emit("islem_bildirimi", {"durum": "hata", "mesaj": f"{ip} guvenli listede veya gecersiz!"})
         return
 

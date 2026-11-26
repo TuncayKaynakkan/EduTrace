@@ -67,3 +67,19 @@ def test_basarisiz_engel_ip_yi_algilamadan_cikarmaz(monkeypatch):
     et.ip_manuel_engelle.__wrapped__({"ip": "not-an-ip"})
     et.ip_manuel_engelle.__wrapped__(None)
     assert et.ENGELLENEN_IPLER == set()
+
+
+@pytest.mark.parametrize("deger,beklenen", [
+    ("127.0.0.1", "127.0.0.1"), ("::1", "::1"),
+    ("0.0.0.0", "127.0.0.1"), ("192.168.1.5", "127.0.0.1"), ("localhost", "127.0.0.1"), ("", "127.0.0.1"),
+])
+def test_motor_yalnizca_yerel_adreste_dinler(deger, beklenen):
+    assert et.sunucu_adresi_sec(deger) == beklenen
+
+
+def test_dns_sunucusu_manuel_engellenmez(monkeypatch):
+    cagrilar = []
+    monkeypatch.setattr(et.socketio, "emit", lambda *a, **k: None)
+    monkeypatch.setattr(et.firewall, "ip_engelle", lambda ip: cagrilar.append(ip))
+    et.ip_manuel_engelle.__wrapped__({"ip": "8.8.8.8"})
+    assert cagrilar == []
